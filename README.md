@@ -1,13 +1,17 @@
 # 🥔 Potato Cabinet
 
-*A talking-potato presidential cabinet — a single-file, in-browser multi-agent simulation.*
+<br>
+
+## Single file only (runs in your browser)
+
+<br>
 
 **▶ Live demo: <https://jsherman999.github.io/potato_cabinet/>** (bring your own API keys)
 
 Describe a real-world problem — or let the President pick one from the news — and watch an
 LLM "Chief of Staff" route it to the relevant federal departments, coordinate them, and
 synthesize a single solution. Each of the 15 cabinet secretaries is its own LLM agent,
-rendered as a talking potato with a Southern drawl. The entire app is one self-contained
+rendered as a talking potato. The entire app is one self-contained
 `index.html` (no build step, no server, no dependencies); you supply your own API keys.
 
 ## Screenshots
@@ -56,8 +60,14 @@ You only need the one file:
 3. Open **Settings**, paste your API keys (OpenAI, OpenRouter, Anthropic), and **Test all providers**.
 4. Type a problem (or pick an example / hit **🦅 President: auto-pick a problem**) and **Run**.
 
-Your keys live only in your browser's `localStorage` and are sent only to the model
-providers — the app makes no other network calls. It's a single-user local tool.
+### Are my API keys safe?
+
+Yes. There is **no backend** — the app is a single static HTML file, so there's nowhere for
+your keys to be sent except the model providers themselves. Your keys are stored only in
+**your own browser** (`localStorage`) and are transmitted over HTTPS **directly** to
+OpenAI / OpenRouter / Anthropic — the only network requests the app makes. Nothing goes to
+any server of mine (there isn't one). You can read the entire ~60 KB `index.html` to verify
+this yourself, and the **Forget keys** button wipes them from your browser at any time.
 
 ## Models (configurable in the `CONFIG` block near the top of `index.html`)
 
