@@ -104,6 +104,8 @@
   .entry.chief { border-color:var(--accent); }
   .entry.synth { border-color:var(--ok); background:rgba(111,191,115,.07); padding:14px; border-radius:8px; }
   .entry.synth .ehead { color:var(--ok); text-transform:uppercase; letter-spacing:.02em; }
+  .entry.pres { border-color:#d4af37; }
+  .entry.pres .ehead { color:#d4af37; }
   .entry.error { border-color:var(--bad); } .entry.error .ebody { color:var(--bad); }
   .spin { display:inline-block; width:12px; height:12px; border:2px solid var(--line); border-top-color:var(--accent);
           border-radius:50%; animation:spin .8s linear infinite; vertical-align:-2px; margin-right:7px; }
@@ -156,7 +158,7 @@
   <span style="font-size:26px">🥔</span>
   <div>
     <h1>Potato Cabinet</h1>
-    <div class="sub">Phase 4 — ask the cabinet</div>
+    <div class="sub">Phase 5 — the President</div>
   </div>
 </header>
 
@@ -166,6 +168,7 @@
     <textarea id="caseInput" placeholder="Describe a real-world problem for the Cabinet to solve…"></textarea>
     <div class="actions">
       <button id="run">▶ Run</button>
+      <button id="prez">🦅 President: auto-pick a problem</button>
       <span class="examples">
         <button class="ghost" data-ex="drought">Drought example</button>
         <button class="ghost" data-ex="military">Military buildup example</button>
@@ -361,7 +364,8 @@ Examples:
 - "Military buildup in Europe deemed threatening" -> {"rationale":"Handled jointly by State (diplomacy) and Defense (posture).","coordination":true,"assignments":[{"seat":"state","brief":"Draft a diplomatic mitigation track with allies."},{"seat":"defense","brief":"Draft a coordinated defensive posture plan."}]}
 
 Output STRICT JSON only — no markdown, no prose outside the JSON. Schema:
-{"rationale":string,"coordination":boolean,"assignments":[{"seat":string,"brief":string}]}`;
+{"rationale":string,"coordination":boolean,"assignments":[{"seat":string,"brief":string}]}
+Keep the rationale to one sentence and each brief to 1-2 short sentences (max ~35 words).`;
 
 function secretarySys(s) {
   return `You are the U.S. ${s.seat} (Department of ${s.dept}). Remit: ${s.scope}
@@ -393,9 +397,14 @@ function resolveSeat(s) {
 }
 
 async function decompose(caseText) {
-  const { text } = await callLLM({ ...CONFIG.roles.orchestrator, system: DECOMPOSE_SYS(),
-    messages: [{ role:"user", content: caseText }], maxTokens: 700, json: true });
-  const j = parseJSON(text);
+  let j;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const sys = DECOMPOSE_SYS() + (attempt ? "\n\nIMPORTANT: be brief — each brief <=25 words — and output ONLY valid compact JSON." : "");
+    const { text } = await callLLM({ ...CONFIG.roles.orchestrator, system: sys,
+      messages: [{ role:"user", content: caseText }], maxTokens: attempt ? 3000 : 2000, json: true });
+    try { j = parseJSON(text); break; }
+    catch (e) { if (attempt) throw new Error("couldn't parse the routing JSON (try a shorter problem) — " + e.message); }
+  }
   const seen = new Set();
   const assignments = (j.assignments || []).map(a => ({ brief: a.brief || "", ref: resolveSeat(a.seat) }))
     .filter(a => a.ref && !seen.has(a.ref.id) && seen.add(a.ref.id));
@@ -458,9 +467,9 @@ function voiceInstructions(id) {
 // southern interjections sprinkled into announcements "at times"
 const SOUTHERN_PHRASES = ["Well shoot.","Goll dang it.","Well don't that beat all.","No friggin' way.",
   "Well I'll be.","Bless your heart.","Hoo-wee.","Lord have mercy.","Dadgum it.","Well butter my biscuit.",
-  "Y'all ain't gonna believe this.","Shoot fire.","Reckon that'll do.","Aw, hush my mouth.",
-  "Friggin' A.","Well friggin' finally.","Ain't that the friggin' truth.","That's friggin' somethin'."];
+  "Y'all ain't gonna believe this.","Shoot fire.","Reckon that'll do.","Aw, hush my mouth."];
 const southernSpice = () => Math.random() < 0.55 ? pick(SOUTHERN_PHRASES) + " " : "";
+const friggin = () => Math.random() < 0.2 ? "friggin' " : "";   // ~1/5 of announcements
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const estDuration = (t) => Math.max(1200, Math.round((t || "").length * 55));
 
@@ -536,14 +545,14 @@ function speakBrowser(text, seatId) {
 if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { _voices = speechSynthesis.getVoices(); };
 
 const TASKED_LINES = [
-  (s) => `${s.dept} here — Chief of Staff handed us a friggin' job.`,
-  (s) => `This here's ${s.dept}. We got our friggin' orders.`,
-  (s) => `${s.dept} reportin' for duty. Chief of Staff put us to friggin' work.`,
+  (s) => `${s.dept} here — Chief of Staff handed us a ${friggin()}job.`,
+  (s) => `This here's ${s.dept}. We got our ${friggin()}orders.`,
+  (s) => `${s.dept} reportin' for duty. Chief of Staff put us to ${friggin()}work.`,
 ];
 const DONE_LINES = [
-  (s) => `${s.dept}'s plan is friggin' ready.`,
-  (s) => `Alright now, ${s.dept}'s got a friggin' plan put together.`,
-  (s) => `${s.dept} here — our work is friggin' done.`,
+  (s) => `${s.dept}'s plan is ${friggin()}ready.`,
+  (s) => `Alright now, ${s.dept}'s got a ${friggin()}plan put together.`,
+  (s) => `${s.dept} here — our work is ${friggin()}done.`,
 ];
 const announceTasked = (s) => southernSpice() + pick(TASKED_LINES)(s);
 const announceDone   = (s) => southernSpice() + pick(DONE_LINES)(s);
@@ -718,7 +727,7 @@ function tx(cls, head, body, color){
   return e;
 }
 
-async function runCase(caseText) {
+async function runCase(caseText, opts = {}) {
   if (running) return;
   caseText = (caseText || "").trim();
   if (!caseText) { tx("error","No problem given","Type or pick an example problem first."); return; }
@@ -726,7 +735,9 @@ async function runCase(caseText) {
     const prov = CONFIG.roles[role].provider;
     if (!getKey(prov)) { clearTranscript(); tx("error","Missing key",`Set the ${CONFIG.providers[prov].label} key in Settings (needed for the ${role}).`); return; }
   }
-  running = true; $("run").disabled = true; resetStates(); clearTranscript();
+  running = true; $("run").disabled = true;
+  if (opts.keep) { for (const s of SECRETARIES) { setState(s.id,"idle"); setBubble(s.id,""); } setState("cos","idle"); setBubble("cos",""); }
+  else { resetStates(); clearTranscript(); }
   setState("cos","working"); setBubble("cos","On it");
   lastCase = caseText; Object.keys(seatPlans).forEach(k => delete seatPlans[k]);   // fresh Q&A context
 
@@ -782,7 +793,57 @@ async function runCase(caseText) {
   running = false; $("run").disabled = false;
 }
 
+/* ============================== PRESIDENT (Phase 5) ==============================
+   Opus 4.8 reviews a live news snapshot (gemini-2.5-flash:online), picks a problem
+   a department can address, writes an Executive Plan, and hands it to the Chief of Staff. */
+async function newsSnapshot() {
+  const { text } = await callLLM({ ...CONFIG.roles.webResearch,
+    messages: [{ role:"user", content:
+      "List 4-5 significant, currently-unfolding U.S. domestic or international problems in the news right now that a U.S. federal cabinet department could help address. For each: a one-line factual summary with one concrete detail (a number, place, or agency) and a source link. Be factual and current." }],
+    maxTokens: 800 });
+  return text;
+}
+const PRESIDENT_SYS =
+`You are the President of the United States, head of the executive branch, with a warm, folksy Southern manner. From the news provided, pick ONE problem that one or more of your cabinet departments can realistically help solve or mitigate, and write a concise Executive Plan to hand to your Chief of Staff. Do NOT assign departments yourself — that is the Chief of Staff's job.`;
+async function presidentPick(news) {
+  const { text } = await callLLM({ ...CONFIG.roles.president, system: PRESIDENT_SYS,
+    messages: [{ role:"user", content:
+      `CURRENT NEWS:\n${news}\n\nWrite the Executive Plan as plain text the Chief of Staff can act on. Include: PROBLEM (2-3 sentences with the key facts), DESIRED OUTCOME (1-2 sentences), and any CONSTRAINTS. Keep it under ~170 words.` }],
+    maxTokens: 700 });
+  return text;
+}
+const presidentSpokenLine = () => southernSpice() + "I've been readin' the news and picked us a problem. Chief of Staff — here's the plan; let's get to work.";
+
+let presidentBusy = false;
+async function runPresident() {
+  if (running || presidentBusy) return;
+  for (const role of ["webResearch","president","orchestrator","secretary"]) {
+    const prov = CONFIG.roles[role].provider;
+    if (!getKey(prov)) { clearTranscript(); tx("error","Missing key",`Set the ${CONFIG.providers[prov].label} key in Settings (needed for the ${role}).`); return; }
+  }
+  presidentBusy = true; $("prez").disabled = true; $("run").disabled = true;
+  unlockAudio(); resetStates(); clearTranscript();
+  try {
+    setState("president","working"); setBubble("president","Readin' the news…");
+    txStatus("President is reviewing the news…");
+    const news = await newsSnapshot();
+    txStatus("President is choosing a problem…");
+    const plan = await presidentPick(news);
+    tx("pres", "President — Executive Plan", plan);
+    setState("president","done"); setBubble("president","Plan issued");
+    announce("president", presidentSpokenLine());
+    $("caseInput").value = plan;
+    txStatus("");
+    await runCase(plan, { keep: true });   // hand to the Chief of Staff; keep president + transcript
+  } catch (e) {
+    txStatus(""); tx("error","President failed", e.message); setState("president","error");
+  } finally {
+    presidentBusy = false; $("prez").disabled = false; $("run").disabled = false;
+  }
+}
+
 $("run").onclick = () => { unlockAudio(); runCase($("caseInput").value); };
+$("prez").onclick = runPresident;
 document.querySelectorAll("[data-ex]").forEach(b => b.onclick = () => { $("caseInput").value = EXAMPLES[b.dataset.ex]; });
 $("voice").checked = voiceOn();
 $("voice").onchange = (e) => { setVoicePref(e.target.checked); updateMuteBtn(); if (e.target.checked) unlockAudio(); else stopSpeech(); };
