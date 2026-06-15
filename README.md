@@ -16,22 +16,13 @@ rendered as a talking potato. The entire app is one self-contained
 
 ## Screenshots
 
-**A coordinated run** — the President hands off, the Chief of Staff routes, and the tasked
-departments (here USDA + State) work, align, and report back.
-![A coordinated run](screenshots/02-coordinated-run.png)
+![](screenshots/01-cabinet.png)
 
-**Ask any secretary** — click a potato to interrogate it; it answers in-context about the
-active case and its own plan, and speaks the answer aloud.
-![Asking the Secretary of State about the active case](screenshots/03-ask-a-secretary.png)
+![](screenshots/02-transcript.png)
 
-**The President picks a problem from the news** — Opus 4.8 reviews a live news snapshot,
-writes an Executive Plan (here, the New World screwworm outbreak), and the Chief of Staff
-routes it to the right departments.
-![Transcript: Executive Plan, routing, and department plans](screenshots/04-transcript.png)
+![](screenshots/03-final-solution.png)
 
-**One integrated solution** — the Chief of Staff synthesizes the department plans into a
-single coordinated response.
-![The Chief of Staff's final integrated solution](screenshots/05-final-solution.png)
+![](screenshots/04-ask.png)
 
 ## How it works
 
