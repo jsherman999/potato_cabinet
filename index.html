@@ -213,11 +213,13 @@ const CONFIG = {
   },
   tts: {
     enabled: true,
-    engine: "openai",                       // "openai" (neural, natural) | "browser" (speechSynthesis fallback)
-    openai: { model: "gpt-4o-mini-tts",
-              instructions: "Speak in a warm, natural, human, conversational tone — relaxed, clear, and lightly expressive, not robotic." },
-    voices: ["alloy","ash","ballad","coral","echo","fable","onyx","nova","sage","shimmer","verse","marin"],
-    presidentVoice: "cedar",
+    engine: "openai",                       // "openai" (neural) | "browser" (speechSynthesis fallback)
+    openai: { model: "gpt-4o-mini-tts" },   // southern accent + pitch are steered per-seat via instructions
+    maleVoices: ["onyx","echo","cedar","ash","ballad","verse"],   // roughly deepest -> highest
+    pitchWords: ["extremely deep, low and gravelly","very deep and resonant","deep and warm",
+                 "medium-pitched","medium-high and bright","fairly high-pitched","high-pitched and reedy"],
+    presidentVoice: "onyx",   // deepest
+    cosVoice: "echo",
   },
   maxTokens: 1024, anthropicVersion: "2023-06-01", appTitle: "Potato Cabinet",
 };
@@ -385,12 +387,34 @@ async function synthesize(caseText, results) {
 const VOICE_PREF = "pc_voice";
 const voiceOn = () => localStorage.getItem(VOICE_PREF) !== "0";
 const setVoicePref = (on) => localStorage.setItem(VOICE_PREF, on ? "1" : "0");
-function seatVoice(id) {
-  if (id === "president") return CONFIG.tts.presidentVoice;
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+function ringT(id) {   // 0 (first secretary) .. 1 (last) — spreads pitch/voice around the ring
   const i = SECRETARIES.findIndex(s => s.id === id);
-  const vs = CONFIG.tts.voices;
-  return vs[(i < 0 ? 0 : i) % vs.length];
+  return i < 0 ? 0 : i / (SECRETARIES.length - 1 || 1);
 }
+function seatVoice(id) {
+  if (id === "president") return CONFIG.tts.presidentVoice;   // onyx, deepest
+  if (id === "cos") return CONFIG.tts.cosVoice;
+  const mv = CONFIG.tts.maleVoices;
+  return mv[Math.round(ringT(id) * (mv.length - 1))];          // deep -> higher around the ring
+}
+function pitchWordFor(id) {
+  const pw = CONFIG.tts.pitchWords;
+  if (id === "president") return pw[0];
+  if (id === "cos") return pw[3];
+  return pw[Math.round(ringT(id) * (pw.length - 1))];
+}
+function voiceInstructions(id) {
+  const auth = id === "president" ? ", with calm presidential authority"
+             : id === "cos" ? ", brisk and in charge" : "";
+  return `Speak as a man with a strong Southern United States accent and an easy, folksy drawl${auth}. `
+       + `Your voice is ${pitchWordFor(id)}. Relaxed, warm, and a little expressive — never robotic; let the drawl come through.`;
+}
+// southern interjections sprinkled into announcements "at times"
+const SOUTHERN_PHRASES = ["Well shoot.","Goll dang it.","Well don't that beat all.","No friggin' way.",
+  "Well I'll be.","Bless your heart.","Hoo-wee.","Lord have mercy.","Dadgum it.","Well butter my biscuit.",
+  "Y'all ain't gonna believe this.","Shoot fire.","Reckon that'll do.","Aw, hush my mouth."];
+const southernSpice = () => Math.random() < 0.55 ? pick(SOUTHERN_PHRASES) + " " : "";
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const estDuration = (t) => Math.max(1200, Math.round((t || "").length * 55));
 
@@ -403,9 +427,9 @@ function unlockAudio() {
 }
 
 const speech = { queue: [], busy: false };
-function announce(seatId, text, voice) {
+function announce(seatId, text) {
   if (!CONFIG.tts.enabled || !voiceOn()) return;
-  speech.queue.push({ seatId, text, voice });
+  speech.queue.push({ seatId, text });
   pumpSpeech();
 }
 async function pumpSpeech() {
@@ -416,20 +440,20 @@ async function pumpSpeech() {
     const seat = document.querySelector(`.seat[data-id="${it.seatId}"]`);
     if (seat) seat.classList.add("talking");
     try {
-      if (CONFIG.tts.engine === "openai" && getKey("openai")) await speakOpenAI(it.text, it.voice);
+      if (CONFIG.tts.engine === "openai" && getKey("openai")) await speakOpenAI(it.text, seatVoice(it.seatId), voiceInstructions(it.seatId));
       else await speakBrowser(it.text, it.seatId);
     } catch (e) { await sleep(estDuration(it.text)); }   // keep the mouth moving even if audio fails
     if (seat) seat.classList.remove("talking");
   }
   speech.busy = false;
 }
-async function speakOpenAI(text, voice) {
+async function speakOpenAI(text, voice, instructions) {
   unlockAudio();
   const key = getKey("openai"); if (!key) throw new Error("no openai key");
   const res = await fetch("https://api.openai.com/v1/audio/speech", { method:"POST",
     headers: { "Authorization":`Bearer ${key}`, "Content-Type":"application/json" },
     body: JSON.stringify({ model: CONFIG.tts.openai.model, voice, input: text,
-                           instructions: CONFIG.tts.openai.instructions, response_format: "mp3" }) });
+                           instructions, response_format: "mp3" }) });
   if (!res.ok) throw new Error("tts HTTP " + res.status);
   const buf = await res.arrayBuffer();
   if (!audioCtx) throw new Error("no audio context");
@@ -449,15 +473,25 @@ function speakBrowser(text, seatId) {
               || _voices.find(v => /^en/i.test(v.lang));
     const u = new SpeechSynthesisUtterance(text);
     if (pref) u.voice = pref;
-    u.rate = 1.0; u.pitch = 0.9 + (hash(seatId) % 5) * 0.06;   // vary pitch per seat for distinction
+    u.rate = 0.96; u.pitch = 0.6 + ringT(seatId) * 0.6;        // male range, deep -> higher around the ring
     u.onend = resolve; u.onerror = resolve;
     speechSynthesis.speak(u);
   });
 }
 if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { _voices = speechSynthesis.getVoices(); };
 
-const announceTasked = (s) => `${s.dept} here. The Chief of Staff has tasked us — we're on it.`;
-const announceDone   = (s) => `${s.dept} reporting: our plan is ready.`;
+const TASKED_LINES = [
+  (s) => `${s.dept} here — Chief of Staff handed us a job.`,
+  (s) => `This here's ${s.dept}. We got our orders.`,
+  (s) => `${s.dept} reportin' for duty. Chief of Staff put us to work.`,
+];
+const DONE_LINES = [
+  (s) => `${s.dept}'s plan is ready.`,
+  (s) => `Alright now, ${s.dept}'s got a plan put together.`,
+  (s) => `${s.dept} here — our plan's all done.`,
+];
+const announceTasked = (s) => southernSpice() + pick(TASKED_LINES)(s);
+const announceDone   = (s) => southernSpice() + pick(DONE_LINES)(s);
 
 /* ============================== POTATO + CABINET UI ============================== */
 const $ = (id) => document.getElementById(id);
@@ -582,12 +616,12 @@ async function runCase(caseText) {
   txStatus("Departments working…");
   let results = await Promise.all(plan.assignments.map(async a => {
     setState(a.ref.id,"working"); setBubble(a.ref.id,"Working…");
-    announce(a.ref.id, announceTasked(a.ref), seatVoice(a.ref.id));
+    announce(a.ref.id, announceTasked(a.ref));
     try {
       const planText = await dispatch(a.ref, caseText, a.brief);
       setState(a.ref.id,"done"); setBubble(a.ref.id,"Done ✓");
       tx("dept", `${a.ref.dept} — ${a.ref.seat}`, planText, a.ref.color);
-      announce(a.ref.id, announceDone(a.ref), seatVoice(a.ref.id));
+      announce(a.ref.id, announceDone(a.ref));
       return { id:a.ref.id, dept:a.ref.dept, seat:a.ref.seat, plan:planText, ref:a.ref };
     } catch (e) { setState(a.ref.id,"error"); setBubble(a.ref.id,"Error"); tx("error", a.ref.dept, e.message); return null; }
   }));
