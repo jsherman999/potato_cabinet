@@ -16,9 +16,6 @@ rendered as a talking potato. The entire app is one self-contained
 
 ## Screenshots
 
-**The cabinet, in a basket** — the 15 department secretaries, jumbled together but labeled.
-![The 15 department secretaries jumbled in a basket](screenshots/01-basket.png)
-
 **A coordinated run** — the President hands off, the Chief of Staff routes, and the tasked
 departments (here USDA + State) work, align, and report back.
 ![A coordinated run](screenshots/02-coordinated-run.png)
