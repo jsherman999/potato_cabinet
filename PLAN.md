@@ -42,16 +42,17 @@ the design could go another way; flag any you want changed before build.
    - **Web-research role** (president's news snapshot; link/attachment enrichment):
      **`google/gemini-2.5-flash:online`** via OpenRouter (user's pick for inexpensive web
      research; the `:online` suffix enables web search and returns citations — validated).
-5. **Voice** uses the built-in browser **Web Speech API** (`speechSynthesis`) — no
-   dependency, works offline, distinct voice/pitch per potato. Quality varies by OS;
-   it is optional and toggleable.
+5. **Voice**: default is **OpenAI neural TTS** (`gpt-4o-mini-tts`) for natural, steerable
+   voices — each potato a male Southern drawl with a per-seat pitch spread (accent set via
+   the `instructions` field). The built-in **Web Speech API** (`speechSynthesis`) is the
+   offline fallback. Optional and toggleable (a 🔊 toggle and a per-popup mute).
 6. **President's "news snapshot"**: default path is the Anthropic **`web_search`
    server-side tool** (works from a direct browser call, runs server-side). Fallback:
    a textarea where the user pastes headlines. No backend is introduced.
-7. **Links/attachments in user input**: handled by (a) a file input the browser reads
-   locally, and (b) a paste-the-text box. Arbitrary URL fetching is CORS-limited in the
-   browser, so links are passed as text to web-search/web-fetch-capable models rather
-   than fetched by our JS.
+7. **Links/attachments in user input** (built — see Phase 6): pasted **links** are read and
+   summarized by `gemini-2.5-flash:online` (the model fetches them server-side, sidestepping
+   browser CORS); attached **images** are analyzed by a vision model (`gemini-2.5-flash`) and
+   their descriptions folded into the case file before routing.
 
 Open question worth your call before/at build (non-blocking — I'll default as above):
 the **default secretary model**. `gpt-4o-mini` via OpenRouter is the cheap default;
@@ -217,9 +218,12 @@ Modules inside the single file (logical sections, not separate files):
      ask a department with no active task → general-scope answer.
 5. President agent (news snapshot → Executive Plan → hands to chief of staff)
    → verify: clicking "auto-pick a problem" runs the full pipeline end-to-end unattended.
+6. Attachments — pasted links + image analysis enrich the case file before routing
+   → verify: a pasted URL is fetched/summarized and an attached image is described, both
+     folded into the case (shown as an "Attachments & links analyzed" transcript entry).
 ```
 
-Phases 0–2 are the load-bearing core; 3–5 are layered enhancements.
+Phases 0–2 are the load-bearing core; 3–6 are layered enhancements. All six are built.
 
 ---
 
@@ -234,8 +238,10 @@ Phases 0–2 are the load-bearing core; 3–5 are layered enhancements.
   `web_search`) or pasted headlines. Pure offline "current news" is not possible in-browser.
 - **TTS variance:** voice quality/availability differs across OS/browser; feature is
   optional and degrades gracefully.
-- **Attachments/links:** browser can read local files and pasted text, but cannot fetch
-  arbitrary cross-origin URLs; links are handed to the model as text.
+- **Attachments/links:** the browser can't fetch arbitrary cross-origin URLs, so pasted
+  links are read by a web-capable model (`gemini-2.5-flash:online`) and images by a vision
+  model — both server-side. Link fetching depends on the model's web access; failures are
+  caught and noted in the transcript rather than aborting the run.
 - **Single-file size:** 16 prompts + UI + adapters will make one large HTML file; kept
   manageable by generating avatars/prompts from the `CABINET` data table rather than
   hand-writing each.
@@ -245,8 +251,9 @@ Phases 0–2 are the load-bearing core; 3–5 are layered enhancements.
 ## 10. What "done" looks like
 
 A single `index.html` the user opens locally; enters keys; types (or lets the president
-pick) a real-world problem; watches the right potato secretaries get tasked, work,
-announce, and report; reads a synthesized cross-department solution; and can interrogate
+pick) a real-world problem — optionally with pasted links or attached images that get
+analyzed in; watches the right potato secretaries get tasked, work, announce, and report
+in a Southern drawl; reads a synthesized cross-department solution; and can interrogate
 any secretary about it — all in the browser, no server.
 
 ---

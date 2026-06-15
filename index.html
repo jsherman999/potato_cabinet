@@ -97,6 +97,13 @@
   .actions { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:12px; }
   .examples { display:flex; gap:8px; flex-wrap:wrap; }
   .note { font-size:12px; color:var(--muted); }
+  .attach { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:10px; }
+  .attach-btn { font-size:13px; font-weight:600; color:#221d14; background:var(--tater); border:1px solid var(--line); padding:7px 12px; border-radius:8px; cursor:pointer; }
+  .attach-list { display:flex; gap:6px; flex-wrap:wrap; }
+  .chip { display:inline-flex; align-items:center; gap:6px; font-size:12px; background:#15130f; border:1px solid var(--line); border-radius:14px; padding:3px 6px 3px 10px; }
+  .chip .chiprm { background:transparent; border:none; color:var(--muted); cursor:pointer; font-size:12px; padding:0 2px; font-weight:700; }
+  .entry.attach { border-color:#7aa6c2; }
+  .entry.attach .ehead { color:#7aa6c2; }
   .tx-status { color:var(--accent); font-size:13px; margin:0 0 14px; min-height:18px; }
   .entry { border-left:3px solid var(--line); padding:6px 0 6px 12px; margin-bottom:14px; }
   .entry .ehead { font-weight:650; font-size:13px; margin-bottom:3px; }
@@ -158,7 +165,7 @@
   <span style="font-size:26px">🥔</span>
   <div>
     <h1>Potato Cabinet</h1>
-    <div class="sub">Phase 5 — the President</div>
+    <div class="sub">Phase 6 — attachments (links &amp; images)</div>
   </div>
 </header>
 
@@ -177,9 +184,13 @@
         <input id="voice" type="checkbox"> 🔊 Voice
       </label>
     </div>
-    <p class="note" style="margin-top:10px">The Chief of Staff (<span id="orchModel"></span>) routes the problem to
-      the relevant departments (<span id="secModel"></span>), coordinates them if needed, and synthesizes one solution.
-      Set keys in Settings first.</p>
+    <div class="attach">
+      <label class="attach-btn">📎 Attach image(s)<input id="files" type="file" accept="image/*" multiple hidden></label>
+      <span class="attach-list" id="attachList"></span>
+    </div>
+    <p class="note" style="margin-top:10px">Paste links right in the text and attach images above — both get
+      fetched/analyzed into the case. The Chief of Staff (<span id="orchModel"></span>) then routes to the relevant
+      departments (<span id="secModel"></span>) and synthesizes one solution. Set keys in Settings first.</p>
   </div>
 
   <div class="card">
@@ -255,6 +266,7 @@ const CONFIG = {
     orchestrator: { provider:"anthropic",  model:"claude-sonnet-4-6" },
     secretary:    { provider:"openrouter", model:"openai/gpt-4o-mini" },
     webResearch:  { provider:"openrouter", model:"google/gemini-2.5-flash:online" },
+    vision:       { provider:"openrouter", model:"google/gemini-2.5-flash" },
   },
   tts: {
     enabled: true,
@@ -311,15 +323,26 @@ function setKey(p,v){ const k=getKeys(); if(v) k[p]=v; else delete k[p]; localSt
 const forgetKeys = () => localStorage.removeItem(KEY_STORE);
 
 /* ============================ PROVIDER ADAPTER ============================ */
-async function callLLM({ provider, model, system, messages, maxTokens, json, signal }) {
+function toAnthropicImage(d){ const m = /^data:(.*?);base64,(.*)$/.exec(d) || []; return { type:"image", source:{ type:"base64", media_type:m[1]||"image/png", data:m[2]||"" } }; }
+async function callLLM({ provider, model, system, messages, maxTokens, json, signal, images }) {
   const p = CONFIG.providers[provider];
   if (!p) throw new Error(`Unknown provider: ${provider}`);
   const key = getKey(provider);
   if (!key) throw new Error(`No API key set for ${p.label}`);
   const max = maxTokens || CONFIG.maxTokens;
+  const msgsImg = (fmt) => {            // attach image blocks to the last user message
+    if (!images || !images.length) return messages;
+    const out = messages.slice();
+    const last = out[out.length - 1];
+    const txt = typeof last.content === "string" ? last.content : "";
+    out[out.length - 1] = { ...last, content: fmt === "anthropic"
+      ? [...images.map(toAnthropicImage), { type:"text", text: txt }]
+      : [{ type:"text", text: txt }, ...images.map(d => ({ type:"image_url", image_url:{ url:d } }))] };
+    return out;
+  };
 
   if (p.format === "anthropic") {
-    const body = { model, max_tokens:max, messages };
+    const body = { model, max_tokens:max, messages: msgsImg("anthropic") };
     if (system) body.system = system;
     const res = await fetch(p.endpoint, { method:"POST", headers:{
       "content-type":"application/json", "x-api-key":key,
@@ -330,7 +353,7 @@ async function callLLM({ provider, model, system, messages, maxTokens, json, sig
     const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
     return { text, raw:data };
   }
-  const msgs = system ? [{ role:"system", content:system }, ...messages] : messages;
+  const msgs = system ? [{ role:"system", content:system }, ...msgsImg("openai")] : msgsImg("openai");
   const body = { model, max_tokens:max, messages:msgs };
   if (json) body.response_format = { type:"json_object" };
   const headers = { "content-type":"application/json", "authorization":`Bearer ${key}` };
@@ -711,6 +734,36 @@ async function doAsk() {
   } finally { qaAbort = null; $("qaAsk").disabled = false; }
 }
 
+/* ============================== ATTACHMENTS (links + images) ============================== */
+let attachedImages = [];   // [{ name, dataURL }]
+function readFileDataURL(f){ return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(f); }); }
+function renderAttachments(){
+  $("attachList").innerHTML = attachedImages.map((im, i) =>
+    `<span class="chip" title="${im.name}">🖼 ${im.name}<button class="chiprm" data-i="${i}">✕</button></span>`).join("");
+  $("attachList").querySelectorAll(".chiprm").forEach(b => b.onclick = () => { attachedImages.splice(+b.dataset.i, 1); renderAttachments(); });
+}
+const URL_RE = /\bhttps?:\/\/[^\s)<>"']+/gi;
+async function describeImage(img, caseText){
+  const { text } = await callLLM({ ...CONFIG.roles.vision,
+    system: "You identify and describe images for a policy analyst. Be concise and factual; note any text, charts, places, and decision-relevant details.",
+    messages: [{ role:"user", content: `Describe this image (file "${img.name}") and note anything relevant to this problem:\n${caseText.slice(0, 600)}` }],
+    images: [img.dataURL], maxTokens: 350 });
+  return text;
+}
+async function fetchLinks(urls){
+  const { text } = await callLLM({ ...CONFIG.roles.webResearch,
+    messages: [{ role:"user", content: `Read the content at these URLs and summarize the parts relevant to a federal policy problem — key facts, numbers, dates, and who is affected. URLs:\n${urls.join("\n")}` }],
+    maxTokens: 700 });
+  return text;
+}
+async function enrichCaseFile(caseText){
+  const extras = [];
+  const urls = caseText.match(URL_RE) || [];
+  if (urls.length) { txStatus("Reading linked sources…"); try { extras.push("LINKED CONTENT:\n" + await fetchLinks(urls)); } catch (e) { extras.push("(couldn't read links: " + e.message + ")"); } }
+  for (const img of attachedImages) { txStatus(`Analyzing image: ${img.name}…`); try { extras.push(`ATTACHED IMAGE (${img.name}):\n` + await describeImage(img, caseText)); } catch (e) { extras.push(`(couldn't analyze ${img.name}: ${e.message})`); } }
+  return { full: extras.length ? [caseText, ...extras].join("\n\n") : caseText, extras };
+}
+
 /* ============================== TRANSCRIPT + RUN ============================== */
 let running = false;
 function clearTranscript(){ $("transcript").innerHTML = ""; }
@@ -739,6 +792,13 @@ async function runCase(caseText, opts = {}) {
   if (opts.keep) { for (const s of SECRETARIES) { setState(s.id,"idle"); setBubble(s.id,""); } setState("cos","idle"); setBubble("cos",""); }
   else { resetStates(); clearTranscript(); }
   setState("cos","working"); setBubble("cos","On it");
+  if (!opts.keep) {                       // fetch links + analyze attached images into the case
+    try {
+      const enr = await enrichCaseFile(caseText);
+      if (enr.extras.length) { caseText = enr.full; tx("attach", "Attachments & links analyzed", enr.extras.join("\n\n")); }
+    } catch (e) { tx("error", "Attachment analysis failed", e.message); }
+    attachedImages = []; renderAttachments();
+  }
   lastCase = caseText; Object.keys(seatPlans).forEach(k => delete seatPlans[k]);   // fresh Q&A context
 
   // 1. decompose
@@ -844,6 +904,10 @@ async function runPresident() {
 
 $("run").onclick = () => { unlockAudio(); runCase($("caseInput").value); };
 $("prez").onclick = runPresident;
+$("files").addEventListener("change", async (e) => {
+  for (const f of e.target.files) { if (f.type.startsWith("image/")) attachedImages.push({ name: f.name, dataURL: await readFileDataURL(f) }); }
+  e.target.value = ""; renderAttachments();
+});
 document.querySelectorAll("[data-ex]").forEach(b => b.onclick = () => { $("caseInput").value = EXAMPLES[b.dataset.ex]; });
 $("voice").checked = voiceOn();
 $("voice").onchange = (e) => { setVoicePref(e.target.checked); updateMuteBtn(); if (e.target.checked) unlockAudio(); else stopSpeech(); };
