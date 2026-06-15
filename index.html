@@ -89,10 +89,11 @@
   .seat.error    .pip    { background:var(--st-error); }
   @keyframes workpulse { 0%,100% { box-shadow:0 0 0 3px var(--st-working); } 50% { box-shadow:0 0 0 8px rgba(224,179,92,.22); } }
 
-  .mouth { transform-box:fill-box; transform-origin:center; transform:scaleY(.4); }
-  .seat.speaking .mouth, .seat.talking .mouth { animation:talk .26s ease-in-out infinite; }
+  /* talking: the bottom third of the potato (the jaw) flaps up and down */
+  .jaw { will-change:transform; }
+  .seat.speaking .jaw, .seat.talking .jaw { animation:flap .22s ease-in-out infinite; }
   .seat.talking .potato { outline:2px solid var(--st-speaking); outline-offset:2px; }
-  @keyframes talk { 0%,100% { transform:scaleY(.25); } 50% { transform:scaleY(1); } }
+  @keyframes flap { 0%,100% { transform:translateY(0); } 50% { transform:translateY(9px); } }
 
   .seat.president-seat .tater { width:110px; height:128px; }
   .seat.president-seat .potato { box-shadow:0 0 0 3px var(--accent); }
@@ -611,24 +612,38 @@ function eyebrows(seed) {
           <path d="${rb}" stroke="#5a4326" stroke-width="2.6" fill="none" stroke-linecap="round"/>`;
 }
 function potatoSVG(color, seed) {
-  const g = "g-" + color.slice(1);
+  const uid = color.slice(1), g = "g-" + uid;
+  const body = "M50 6 C79 6 92 30 92 60 C92 94 74 112 50 112 C26 112 8 94 8 60 C8 30 21 6 50 6 Z";
   return `<svg class="tater" viewBox="0 0 100 118" width="88" height="104" aria-hidden="true">
-    <defs><radialGradient id="${g}" cx="40%" cy="32%" r="78%">
-      <stop offset="0%" stop-color="#e8c47d"/><stop offset="100%" stop-color="#b3863c"/></radialGradient></defs>
-    <path class="body" d="M50 6 C79 6 92 30 92 60 C92 94 74 112 50 112 C26 112 8 94 8 60 C8 30 21 6 50 6 Z"
-          fill="url(#${g})" stroke="#7c5a28" stroke-width="2"/>
-    <ellipse cx="27" cy="46" rx="3" ry="2" fill="#9c7434" opacity=".5"/>
-    <ellipse cx="72" cy="78" rx="3.4" ry="2.2" fill="#9c7434" opacity=".5"/>
-    <ellipse cx="63" cy="33" rx="2.2" ry="1.6" fill="#9c7434" opacity=".5"/>
-    ${eyebrows(seed)}
-    <g class="eyes">
-      <ellipse class="eye" cx="38" cy="54" rx="5" ry="6.5" fill="#2a2018"/>
-      <ellipse class="eye" cx="64" cy="54" rx="5" ry="6.5" fill="#2a2018"/>
-      <circle cx="40" cy="51" r="1.6" fill="#fff" opacity=".85"/>
-      <circle cx="66" cy="51" r="1.6" fill="#fff" opacity=".85"/>
+    <defs>
+      <radialGradient id="${g}" cx="40%" cy="32%" r="78%">
+        <stop offset="0%" stop-color="#e8c47d"/><stop offset="100%" stop-color="#b3863c"/></radialGradient>
+      <clipPath id="up-${uid}"><rect x="-3" y="-3" width="106" height="81"/></clipPath>
+      <clipPath id="lo-${uid}"><rect x="-3" y="76" width="106" height="46"/></clipPath>
+    </defs>
+    <!-- dark mouth cavity, revealed when the jaw flaps open -->
+    <path d="${body}" fill="#2e1308" clip-path="url(#lo-${uid})"/>
+    <!-- upper two-thirds (static): face, eyes, brows, resting lip -->
+    <g clip-path="url(#up-${uid})">
+      <path class="body" d="${body}" fill="url(#${g})" stroke="#7c5a28" stroke-width="2"/>
+      <ellipse cx="27" cy="46" rx="3" ry="2" fill="#9c7434" opacity=".5"/>
+      <ellipse cx="63" cy="33" rx="2.2" ry="1.6" fill="#9c7434" opacity=".5"/>
+      ${eyebrows(seed)}
+      <g class="eyes">
+        <ellipse class="eye" cx="38" cy="54" rx="5" ry="6.5" fill="#2a2018"/>
+        <ellipse class="eye" cx="64" cy="54" rx="5" ry="6.5" fill="#2a2018"/>
+        <circle cx="40" cy="51" r="1.6" fill="#fff" opacity=".85"/>
+        <circle cx="66" cy="51" r="1.6" fill="#fff" opacity=".85"/>
+      </g>
+      <path d="M40 74 Q51 78 62 74" stroke="#3a241a" stroke-width="2.6" fill="none" stroke-linecap="round"/>
     </g>
-    <ellipse class="mouth" cx="51" cy="80" rx="11" ry="5.5" fill="#3a241a"/>
-    <rect x="39" y="104" width="24" height="9" rx="3.5" fill="${color}"/></svg>`;
+    <!-- bottom third = the jaw; flaps up/down while talking -->
+    <g class="jaw">
+      <path class="body" d="${body}" fill="url(#${g})" stroke="#7c5a28" stroke-width="2" clip-path="url(#lo-${uid})"/>
+      <ellipse cx="70" cy="90" rx="3.4" ry="2.2" fill="#9c7434" opacity=".5" clip-path="url(#lo-${uid})"/>
+      <rect x="39" y="104" width="24" height="9" rx="3.5" fill="${color}"/>
+    </g>
+  </svg>`;
 }
 function hash(s){ let h=0; for(const c of s) h=(h*31+c.charCodeAt(0))>>>0; return h; }
 function seatEl(seat, kind) {
