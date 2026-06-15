@@ -1,0 +1,8 @@
+# Local agent instructions — not part of the project deliverable
+CLAUDE.md
+
+# Secrets — never commit API keys
+.env
+.env.*
+*.key
+secrets.*
