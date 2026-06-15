@@ -6,51 +6,97 @@
 <title>Potato Cabinet</title>
 <style>
   :root {
-    --bg: #1c1a17; --panel: #2a2620; --ink: #efe7d6; --muted: #a89b82;
-    --tater: #c9a35b; --line: #423b30; --ok: #6fbf73; --bad: #d9694e; --accent: #e0b35c;
+    --bg:#1c1a17; --panel:#2a2620; --ink:#efe7d6; --muted:#a89b82;
+    --tater:#c9a35b; --line:#423b30; --ok:#6fbf73; --bad:#d9694e; --accent:#e0b35c;
+    --st-idle:#8a7f6a; --st-assigned:#e0b35c; --st-working:#e0b35c;
+    --st-speaking:#5bb6c7; --st-done:#6fbf73; --st-error:#d9694e;
   }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; font: 15px/1.5 system-ui, sans-serif; background: var(--bg); color: var(--ink);
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 system-ui,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:18px 24px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:12px; }
+  header h1 { font-size:20px; margin:0; font-weight:650; }
+  header .sub { color:var(--muted); font-size:13px; }
+  main { max-width:1080px; margin:0 auto; padding:22px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px; margin-bottom:18px; }
+  .card h2 { font-size:14px; margin:0 0 12px; letter-spacing:.02em; text-transform:uppercase; color:var(--accent); }
+  .cabinet-note { color:var(--muted); font-size:13px; margin:0 0 16px; }
+
+  /* ---------------- cabinet grid ---------------- */
+  .president-row { display:flex; justify-content:center; margin-bottom:18px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(140px,1fr)); gap:14px; }
+  .seat { position:relative; display:flex; flex-direction:column; align-items:center; text-align:center;
+          padding:10px 6px 8px; border-radius:12px; cursor:pointer; user-select:none; transition:background .15s; }
+  .seat:hover { background:rgba(255,255,255,.03); }
+  .potato { position:relative; border-radius:26px; padding:4px; box-shadow:0 0 0 2px transparent; transition:box-shadow .2s; }
+  .tater { display:block; animation:bob 3.6s ease-in-out infinite; }
+  @keyframes bob { 50% { transform:translateY(-5px); } }
+  .pip { position:absolute; top:2px; right:2px; width:12px; height:12px; border-radius:50%;
+         background:var(--st-idle); border:2px solid var(--panel); }
+  .seat-label { margin-top:6px; }
+  .seat-label .dept { font-weight:650; font-size:13px; }
+  .seat-label .title { font-size:11px; color:var(--muted); line-height:1.25; margin-top:1px; }
+  .bubble { position:absolute; top:-6px; left:50%; transform:translate(-50%,-100%);
+            background:#15130f; border:1px solid var(--line); color:var(--ink); font-size:11px;
+            padding:5px 8px; border-radius:8px; max-width:150px; white-space:normal; z-index:5;
+            box-shadow:0 4px 14px rgba(0,0,0,.4); }
+  .bubble::after { content:""; position:absolute; bottom:-5px; left:50%; transform:translateX(-50%);
+            border:5px solid transparent; border-top-color:#15130f; }
+
+  /* state visuals (class on .seat) */
+  .seat.assigned .potato { box-shadow:0 0 0 3px var(--st-assigned); }
+  .seat.assigned .pip    { background:var(--st-assigned); }
+  .seat.working  .potato { animation:workpulse 1.1s ease-in-out infinite; }
+  .seat.working  .pip    { background:var(--st-working); }
+  .seat.speaking .potato { box-shadow:0 0 0 3px var(--st-speaking); }
+  .seat.speaking .pip    { background:var(--st-speaking); }
+  .seat.done     .potato { box-shadow:0 0 0 3px var(--st-done); }
+  .seat.done     .pip    { background:var(--st-done); }
+  .seat.error    .potato { box-shadow:0 0 0 3px var(--st-error); }
+  .seat.error    .pip    { background:var(--st-error); }
+  @keyframes workpulse {
+    0%,100% { box-shadow:0 0 0 3px var(--st-working); }
+    50%     { box-shadow:0 0 0 8px rgba(224,179,92,.22); }
   }
-  header {
-    padding: 22px 24px; border-bottom: 1px solid var(--line);
-    display: flex; align-items: center; gap: 12px;
-  }
-  header h1 { font-size: 20px; margin: 0; font-weight: 650; }
-  header .sub { color: var(--muted); font-size: 13px; }
-  main { max-width: 760px; margin: 0 auto; padding: 24px; }
-  .card {
-    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
-    padding: 20px; margin-bottom: 20px;
-  }
-  .card h2 { font-size: 15px; margin: 0 0 14px; letter-spacing: .02em; text-transform: uppercase; color: var(--accent); }
-  label { display: block; font-size: 13px; color: var(--muted); margin: 0 0 5px; }
-  .row { margin-bottom: 14px; }
-  input[type=password], input[type=text] {
-    width: 100%; padding: 9px 11px; background: #15130f; color: var(--ink);
-    border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 13px;
-  }
-  .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
-  button {
-    font: inherit; font-weight: 600; border: 1px solid var(--line); background: var(--tater);
-    color: #221d14; padding: 9px 16px; border-radius: 8px; cursor: pointer;
-  }
-  button.ghost { background: transparent; color: var(--ink); }
-  button:disabled { opacity: .55; cursor: default; }
-  .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-  .status { margin-top: 16px; display: grid; gap: 8px; }
-  .prov {
-    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
-    background: #15130f; border: 1px solid var(--line); border-radius: 8px; font-size: 13px;
-  }
-  .pip { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: none; }
-  .pip.ok { background: var(--ok); } .pip.bad { background: var(--bad); }
-  .pip.run { background: var(--accent); animation: pulse 1s infinite; }
-  @keyframes pulse { 50% { opacity: .3; } }
-  .prov .name { font-weight: 600; min-width: 96px; }
-  .prov .msg { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .note { font-size: 12px; color: var(--muted); }
+
+  /* mouth + speaking animation */
+  .mouth { transform-box:fill-box; transform-origin:center; transform:scaleY(.4); }
+  .seat.speaking .mouth { animation:talk .26s ease-in-out infinite; }
+  @keyframes talk { 0%,100% { transform:scaleY(.25); } 50% { transform:scaleY(1); } }
+
+  /* president emphasis */
+  .seat.president-seat .tater { width:110px; height:128px; }
+  .seat.president-seat .potato { box-shadow:0 0 0 3px var(--accent); }
+  .seat.president-seat .crown { font-size:20px; position:absolute; top:-14px; left:50%; transform:translateX(-50%); z-index:4; }
+
+  /* ---------------- controls / legend ---------------- */
+  .controls { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:6px; }
+  button { font:inherit; font-weight:600; border:1px solid var(--line); background:var(--tater);
+           color:#221d14; padding:8px 14px; border-radius:8px; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--ink); }
+  button:disabled { opacity:.55; cursor:default; }
+  .legend { display:flex; gap:14px; flex-wrap:wrap; margin-top:10px; font-size:12px; color:var(--muted); }
+  .legend span { display:inline-flex; align-items:center; gap:5px; }
+  .legend i { width:10px; height:10px; border-radius:50%; display:inline-block; }
+  .note { font-size:12px; color:var(--muted); }
+
+  /* ---------------- settings (Phase 0) ---------------- */
+  details.card > summary { cursor:pointer; font-size:14px; letter-spacing:.02em; text-transform:uppercase; color:var(--accent); list-style:none; }
+  details.card > summary::-webkit-details-marker { display:none; }
+  details.card > summary::before { content:"▸ "; }
+  details.card[open] > summary::before { content:"▾ "; }
+  label.fld { display:block; font-size:13px; color:var(--muted); margin:14px 0 5px; }
+  input[type=password], input[type=text] { width:100%; padding:9px 11px; background:#15130f; color:var(--ink);
+           border:1px solid var(--line); border-radius:8px; font:inherit; font-size:13px; }
+  .actions { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:14px; }
+  .status { margin-top:14px; display:grid; gap:8px; }
+  .prov { display:flex; align-items:center; gap:10px; padding:10px 12px; background:#15130f;
+          border:1px solid var(--line); border-radius:8px; font-size:13px; }
+  .prov .spip { width:10px; height:10px; border-radius:50%; background:var(--muted); flex:none; }
+  .prov .spip.ok { background:var(--ok); } .prov .spip.bad { background:var(--bad); }
+  .prov .spip.run { background:var(--accent); animation:blink 1s infinite; }
+  @keyframes blink { 50% { opacity:.3; } }
+  .prov .name { font-weight:600; min-width:96px; }
+  .prov .msg { color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 </style>
 </head>
 <body>
@@ -58,85 +104,107 @@
   <span style="font-size:26px">🥔</span>
   <div>
     <h1>Potato Cabinet</h1>
-    <div class="sub">Phase 0 — connection check &amp; key setup</div>
+    <div class="sub">Phase 1 — cabinet roster</div>
   </div>
 </header>
 
 <main>
   <div class="card">
-    <h2>API keys</h2>
-    <div class="row">
-      <label for="k-openai">OpenAI key (<span id="m-openai"></span>)</label>
-      <input id="k-openai" type="password" placeholder="sk-proj-…" autocomplete="off">
+    <h2>The Cabinet</h2>
+    <p class="cabinet-note">The President sits up top; the 15 department secretaries fill the grid.
+      The Chief of Staff (orchestrator) routes tasks to them — wired up in a later phase.</p>
+    <div class="controls">
+      <button id="demo">▶ Run state demo</button>
+      <button id="reset" class="ghost">Reset</button>
+      <span class="note">Tip: click any potato to cycle its state.</span>
     </div>
-    <div class="row">
-      <label for="k-openrouter">OpenRouter key (<span id="m-openrouter"></span>)</label>
-      <input id="k-openrouter" type="password" placeholder="sk-or-v1-…" autocomplete="off">
-    </div>
-    <div class="row">
-      <label for="k-anthropic">Anthropic key (<span id="m-anthropic"></span>)</label>
-      <input id="k-anthropic" type="password" placeholder="sk-ant-…" autocomplete="off">
-    </div>
+    <div class="legend" id="legend"></div>
+    <div style="height:14px"></div>
+    <div class="president-row" id="president-row"></div>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <details class="card">
+    <summary>Settings — API keys &amp; connection test</summary>
+    <label class="fld" for="k-openai">OpenAI key (<span id="m-openai"></span>)</label>
+    <input id="k-openai" type="password" placeholder="sk-proj-…" autocomplete="off">
+    <label class="fld" for="k-openrouter">OpenRouter key (<span id="m-openrouter"></span>)</label>
+    <input id="k-openrouter" type="password" placeholder="sk-or-v1-…" autocomplete="off">
+    <label class="fld" for="k-anthropic">Anthropic key (<span id="m-anthropic"></span>)</label>
+    <input id="k-anthropic" type="password" placeholder="sk-ant-…" autocomplete="off">
     <div class="actions">
       <button id="save">Save keys</button>
       <button id="forget" class="ghost">Forget keys</button>
       <label style="display:inline-flex;align-items:center;gap:6px;margin:0;color:var(--ink)">
         <input id="show" type="checkbox"> show
       </label>
-    </div>
-    <p class="hint">Keys are stored only in this browser (localStorage) and sent only to the
-      provider you call. Nothing goes to any other server. Anthropic is hit directly with the
-      <code>anthropic-dangerous-direct-browser-access</code> header.</p>
-  </div>
-
-  <div class="card">
-    <h2>Test connections</h2>
-    <div class="actions">
       <button id="test">Test all providers</button>
-      <span class="note">Pings each provider's test model with a one-word prompt.</span>
     </div>
+    <p class="note" style="margin-top:12px">Keys live only in this browser (localStorage) and are sent only to
+      the provider you call. Anthropic is hit directly via the <code>anthropic-dangerous-direct-browser-access</code> header.</p>
     <div class="status" id="status"></div>
-  </div>
+  </details>
 </main>
 
 <script>
 "use strict";
 
-/* ============================== CONFIG ==============================
-   Single source of truth. Models per role default to the picks validated
-   in PLAN.md §11; everything is overridable here. */
+/* ============================== CONFIG ============================== */
 const CONFIG = {
   providers: {
-    openai:     { label: "OpenAI",     endpoint: "https://api.openai.com/v1/chat/completions",      format: "openai",    testModel: "gpt-4.1-mini" },
-    openrouter: { label: "OpenRouter", endpoint: "https://openrouter.ai/api/v1/chat/completions",   format: "openai",    testModel: "google/gemini-2.5-flash" },
-    anthropic:  { label: "Anthropic",  endpoint: "https://api.anthropic.com/v1/messages",           format: "anthropic", testModel: "claude-haiku-4-5" },
+    openai:     { label:"OpenAI",     endpoint:"https://api.openai.com/v1/chat/completions",    format:"openai",    testModel:"gpt-4.1-mini" },
+    openrouter: { label:"OpenRouter", endpoint:"https://openrouter.ai/api/v1/chat/completions", format:"openai",    testModel:"google/gemini-2.5-flash" },
+    anthropic:  { label:"Anthropic",  endpoint:"https://api.anthropic.com/v1/messages",         format:"anthropic", testModel:"claude-haiku-4-5" },
   },
-  // role -> {provider, model} (used by later phases)
   roles: {
-    president:    { provider: "anthropic",  model: "claude-opus-4-8" },
-    orchestrator: { provider: "anthropic",  model: "claude-sonnet-4-6" },
-    secretary:    { provider: "openrouter", model: "openai/gpt-4o-mini" },
-    webResearch:  { provider: "openrouter", model: "google/gemini-2.5-flash:online" },
+    president:    { provider:"anthropic",  model:"claude-opus-4-8" },
+    orchestrator: { provider:"anthropic",  model:"claude-sonnet-4-6" },
+    secretary:    { provider:"openrouter", model:"openai/gpt-4o-mini" },
+    webResearch:  { provider:"openrouter", model:"google/gemini-2.5-flash:online" },
   },
   maxTokens: 1024,
   anthropicVersion: "2023-06-01",
   appTitle: "Potato Cabinet",
 };
 
+/* ============================== CABINET ==============================
+   Single source of truth for avatars, labels, and (later) system prompts.
+   scope = the prompt seed used when the agent is built in a later phase. */
+const PRESIDENT = {
+  id:"president", seat:"President", dept:"President", color:"#d4af37",
+  scope:"Head of the executive branch. Reviews national/international news and sets the agenda."
+};
+const SECRETARIES = [
+  { id:"state",        dept:"State",          seat:"Secretary of State",                       color:"#5b8dd6", scope:"Foreign policy, diplomacy, treaties, embassies." },
+  { id:"treasury",     dept:"Treasury",       seat:"Secretary of the Treasury",                color:"#3f9d72", scope:"Federal finance, taxation, debt, sanctions, currency." },
+  { id:"defense",      dept:"Defense",        seat:"Secretary of Defense",                     color:"#6e7b52", scope:"Military forces and national defense operations." },
+  { id:"justice",      dept:"Justice",        seat:"Attorney General",                         color:"#9b6cc0", scope:"Federal law enforcement, prosecution, civil rights." },
+  { id:"interior",     dept:"Interior",       seat:"Secretary of the Interior",                color:"#b5713a", scope:"Public lands, natural resources, parks, tribal affairs." },
+  { id:"agriculture",  dept:"Agriculture",    seat:"Secretary of Agriculture",                 color:"#6fae4a", scope:"Farming, food supply, rural development, nutrition programs." },
+  { id:"commerce",     dept:"Commerce",       seat:"Secretary of Commerce",                    color:"#46a6b8", scope:"Trade, business, economic data, weather (NOAA), patents." },
+  { id:"labor",        dept:"Labor",          seat:"Secretary of Labor",                       color:"#d2734a", scope:"Workforce, wages, workplace safety, unemployment." },
+  { id:"hhs",          dept:"HHS",            seat:"Secretary of Health & Human Services",     color:"#4f9cd8", scope:"Public health, Medicare/Medicaid, FDA, CDC." },
+  { id:"hud",          dept:"HUD",            seat:"Secretary of Housing & Urban Development",  color:"#d8a23f", scope:"Housing, urban development, homelessness." },
+  { id:"transport",    dept:"Transportation", seat:"Secretary of Transportation",              color:"#c7a93a", scope:"Highways, aviation, rail, transit safety." },
+  { id:"energy",       dept:"Energy",         seat:"Secretary of Energy",                      color:"#e0c34a", scope:"Energy policy, the grid, nuclear security, R&D." },
+  { id:"education",    dept:"Education",      seat:"Secretary of Education",                   color:"#5566c4", scope:"Schools, student aid, education policy." },
+  { id:"va",           dept:"Veterans Affairs", seat:"Secretary of Veterans Affairs",         color:"#6f93b0", scope:"Veteran healthcare, benefits, and services." },
+  { id:"dhs",          dept:"Homeland Security", seat:"Secretary of Homeland Security",        color:"#3f6fb0", scope:"Borders, immigration, disaster response (FEMA), cybersecurity." },
+];
+const ALL_SEATS = [PRESIDENT, ...SECRETARIES];
+
+const STATES = ["idle","assigned","working","speaking","done","error"];
+const STATE_COLORS = { idle:"var(--st-idle)", assigned:"var(--st-assigned)", working:"var(--st-working)",
+                       speaking:"var(--st-speaking)", done:"var(--st-done)", error:"var(--st-error)" };
+
 /* ============================== KEY STORE ============================== */
 const KEY_STORE = "pc_keys";
 const getKeys = () => { try { return JSON.parse(localStorage.getItem(KEY_STORE)) || {}; } catch { return {}; } };
 const getKey  = (p) => getKeys()[p] || "";
-function setKey(p, v) {
-  const k = getKeys();
-  if (v) k[p] = v; else delete k[p];
-  localStorage.setItem(KEY_STORE, JSON.stringify(k));
-}
+function setKey(p,v){ const k=getKeys(); if(v) k[p]=v; else delete k[p]; localStorage.setItem(KEY_STORE, JSON.stringify(k)); }
 const forgetKeys = () => localStorage.removeItem(KEY_STORE);
 
-/* ============================ PROVIDER ADAPTER ============================
-   callLLM normalizes the three providers behind one interface.
-   Returns { text, raw }. Throws Error(message) on failure. */
+/* ============================ PROVIDER ADAPTER ============================ */
 async function callLLM({ provider, model, system, messages, maxTokens, json }) {
   const p = CONFIG.providers[provider];
   if (!p) throw new Error(`Unknown provider: ${provider}`);
@@ -145,103 +213,158 @@ async function callLLM({ provider, model, system, messages, maxTokens, json }) {
   const max = maxTokens || CONFIG.maxTokens;
 
   if (p.format === "anthropic") {
-    const body = { model, max_tokens: max, messages };
+    const body = { model, max_tokens:max, messages };
     if (system) body.system = system;
-    const res = await fetch(p.endpoint, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": CONFIG.anthropicVersion,
-        "anthropic-dangerous-direct-browser-access": "true",
-      },
-      body: JSON.stringify(body),
-    });
+    const res = await fetch(p.endpoint, { method:"POST", headers:{
+      "content-type":"application/json", "x-api-key":key,
+      "anthropic-version":CONFIG.anthropicVersion,
+      "anthropic-dangerous-direct-browser-access":"true",
+    }, body: JSON.stringify(body) });
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error?.message || `HTTP ${res.status}`);
-    const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
-    return { text, raw: data };
+    const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
+    return { text, raw:data };
   }
 
-  // OpenAI-compatible (openai + openrouter)
-  const msgs = system ? [{ role: "system", content: system }, ...messages] : messages;
-  const body = { model, max_tokens: max, messages: msgs };
-  if (json) body.response_format = { type: "json_object" };
-  const headers = { "content-type": "application/json", "authorization": `Bearer ${key}` };
+  const msgs = system ? [{ role:"system", content:system }, ...messages] : messages;
+  const body = { model, max_tokens:max, messages:msgs };
+  if (json) body.response_format = { type:"json_object" };
+  const headers = { "content-type":"application/json", "authorization":`Bearer ${key}` };
   if (provider === "openrouter") {
-    headers["HTTP-Referer"] = (location && location.origin && location.origin !== "null")
-      ? location.origin : "https://potato.cabinet.local";
+    headers["HTTP-Referer"] = (location && location.origin && location.origin!=="null") ? location.origin : "https://potato.cabinet.local";
     headers["X-Title"] = CONFIG.appTitle;
   }
-  const res = await fetch(p.endpoint, { method: "POST", headers, body: JSON.stringify(body) });
+  const res = await fetch(p.endpoint, { method:"POST", headers, body: JSON.stringify(body) });
   const data = await res.json();
   if (!res.ok) throw new Error(data?.error?.message || `HTTP ${res.status}`);
-  return { text: data?.choices?.[0]?.message?.content ?? "", raw: data };
+  return { text: data?.choices?.[0]?.message?.content ?? "", raw:data };
 }
 
-/* ============================== UI ============================== */
+/* ============================== POTATO + CABINET UI ============================== */
 const $ = (id) => document.getElementById(id);
+
+function potatoSVG(color) {
+  return `<svg class="tater" viewBox="0 0 100 118" width="88" height="104" aria-hidden="true">
+    <defs><radialGradient id="g-${color.slice(1)}" cx="40%" cy="32%" r="78%">
+      <stop offset="0%" stop-color="#e8c47d"/><stop offset="100%" stop-color="#b3863c"/>
+    </radialGradient></defs>
+    <path class="body" d="M50 6 C79 6 92 30 92 60 C92 94 74 112 50 112 C26 112 8 94 8 60 C8 30 21 6 50 6 Z"
+          fill="url(#g-${color.slice(1)})" stroke="#7c5a28" stroke-width="2"/>
+    <ellipse cx="27" cy="46" rx="3" ry="2"   fill="#9c7434" opacity=".5"/>
+    <ellipse cx="72" cy="78" rx="3.4" ry="2.2" fill="#9c7434" opacity=".5"/>
+    <ellipse cx="63" cy="33" rx="2.2" ry="1.6" fill="#9c7434" opacity=".5"/>
+    <ellipse class="eye" cx="38" cy="54" rx="5" ry="6.5" fill="#2a2018"/>
+    <ellipse class="eye" cx="64" cy="54" rx="5" ry="6.5" fill="#2a2018"/>
+    <circle cx="40" cy="51" r="1.6" fill="#fff" opacity=".85"/>
+    <circle cx="66" cy="51" r="1.6" fill="#fff" opacity=".85"/>
+    <ellipse class="mouth" cx="51" cy="80" rx="11" ry="5.5" fill="#3a241a"/>
+    <rect x="39" y="104" width="24" height="9" rx="3.5" fill="${color}"/>
+  </svg>`;
+}
+
+function seatEl(seat, isPresident) {
+  const el = document.createElement("div");
+  el.className = "seat idle" + (isPresident ? " president-seat" : "");
+  el.dataset.id = seat.id;
+  el.innerHTML =
+    (isPresident ? `<span class="crown">👑</span>` : ``) +
+    `<div class="bubble" hidden></div>
+     <div class="potato">${potatoSVG(seat.color)}<span class="pip"></span></div>
+     <div class="seat-label"><div class="dept">${seat.dept}</div><div class="title">${seat.seat}</div></div>`;
+  el.style.setProperty("--d", (parseInt(seat.id.length) % 6) * 0.3 + "s");
+  el.querySelector(".tater").style.animationDelay = (hash(seat.id) % 1000) / 1000 * 3.6 + "s";
+  el.addEventListener("click", () => cycleState(seat.id));
+  return el;
+}
+function hash(s){ let h=0; for(const c of s) h=(h*31+c.charCodeAt(0))>>>0; return h; }
+
+const seatState = {};   // id -> state
+function renderCabinet() {
+  $("president-row").appendChild(seatEl(PRESIDENT, true));
+  const grid = $("grid");
+  for (const s of SECRETARIES) grid.appendChild(seatEl(s, false));
+  for (const s of ALL_SEATS) seatState[s.id] = "idle";
+  renderLegend();
+}
+function renderLegend() {
+  $("legend").innerHTML = STATES.map(st =>
+    `<span><i style="background:${STATE_COLORS[st]}"></i>${st}</span>`).join("");
+}
+
+function setState(id, state) {
+  const el = document.querySelector(`.seat[data-id="${id}"]`);
+  if (!el) return;
+  el.classList.remove(...STATES);
+  el.classList.add(state);
+  seatState[id] = state;
+}
+function setBubble(id, text) {
+  const b = document.querySelector(`.seat[data-id="${id}"] .bubble`);
+  if (!b) return;
+  if (text) { b.textContent = text; b.hidden = false; } else { b.hidden = true; b.textContent = ""; }
+}
+function cycleState(id) {
+  const next = STATES[(STATES.indexOf(seatState[id]) + 1) % STATES.length];
+  setState(id, next);
+  setBubble(id, next === "idle" ? "" : next);
+}
+function resetStates() {
+  for (const s of ALL_SEATS) { setState(s.id, "idle"); setBubble(s.id, ""); }
+}
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+async function runDemo() {
+  resetStates();
+  $("demo").disabled = true;
+  // simulate a State + Defense coordination, as in the readme's military-buildup example
+  setState("president","speaking"); setBubble("president","Reviewing the news…"); await sleep(1300);
+  setState("president","idle"); setBubble("president","");
+  const picks = ["state","defense"];
+  for (const id of picks) { setState(id,"assigned"); setBubble(id,"Tasked by the Chief of Staff"); }
+  await sleep(1100);
+  for (const id of picks) { setState(id,"working"); setBubble(id,"Working on the brief…"); }
+  await sleep(1700);
+  for (const id of picks) { setState(id,"speaking"); setBubble(id,"Here's our coordinated plan…"); }
+  await sleep(1600);
+  for (const id of picks) { setState(id,"done"); setBubble(id,"Done ✓"); }
+  $("demo").disabled = false;
+}
+$("demo").onclick = runDemo;
+$("reset").onclick = resetStates;
+
+/* ============================== SETTINGS (Phase 0) ============================== */
 const PROVIDERS = Object.keys(CONFIG.providers);
-
-function hydrate() {
-  for (const p of PROVIDERS) {
-    $(`m-${p}`).textContent = CONFIG.providers[p].testModel;
-    $(`k-${p}`).value = getKey(p);
-  }
+function hydrateSettings() {
+  for (const p of PROVIDERS) { $(`m-${p}`).textContent = CONFIG.providers[p].testModel; $(`k-${p}`).value = getKey(p); }
 }
-
-$("save").onclick = () => {
-  for (const p of PROVIDERS) setKey(p, $(`k-${p}`).value.trim());
-  flash($("save"), "Saved ✓");
-};
-$("forget").onclick = () => {
-  forgetKeys();
-  for (const p of PROVIDERS) $(`k-${p}`).value = "";
-  flash($("forget"), "Cleared");
-};
-$("show").onchange = (e) => {
-  for (const p of PROVIDERS) $(`k-${p}`).type = e.target.checked ? "text" : "password";
-};
-
-function flash(btn, msg) {
-  const old = btn.textContent; btn.textContent = msg; btn.disabled = true;
-  setTimeout(() => { btn.textContent = old; btn.disabled = false; }, 1100);
-}
-
+$("save").onclick = () => { for (const p of PROVIDERS) setKey(p, $(`k-${p}`).value.trim()); flash($("save"),"Saved ✓"); };
+$("forget").onclick = () => { forgetKeys(); for (const p of PROVIDERS) $(`k-${p}`).value=""; flash($("forget"),"Cleared"); };
+$("show").onchange = (e) => { for (const p of PROVIDERS) $(`k-${p}`).type = e.target.checked ? "text":"password"; };
+function flash(btn,msg){ const o=btn.textContent; btn.textContent=msg; btn.disabled=true; setTimeout(()=>{btn.textContent=o;btn.disabled=false;},1100); }
 $("test").onclick = async () => {
-  // persist whatever is typed so the test uses current values
   for (const p of PROVIDERS) setKey(p, $(`k-${p}`).value.trim());
-  const box = $("status"); box.innerHTML = "";
-  const rows = {};
+  const box = $("status"); box.innerHTML = ""; const rows = {};
   for (const p of PROVIDERS) {
-    const el = document.createElement("div");
-    el.className = "prov";
-    el.innerHTML = `<span class="pip run"></span><span class="name">${CONFIG.providers[p].label}</span><span class="msg">testing ${CONFIG.providers[p].testModel}…</span>`;
-    box.appendChild(el); rows[p] = el;
+    const el = document.createElement("div"); el.className="prov";
+    el.innerHTML = `<span class="spip run"></span><span class="name">${CONFIG.providers[p].label}</span><span class="msg">testing ${CONFIG.providers[p].testModel}…</span>`;
+    box.appendChild(el); rows[p]=el;
   }
   $("test").disabled = true;
   await Promise.all(PROVIDERS.map(async (p) => {
-    const pip = rows[p].querySelector(".pip");
-    const msg = rows[p].querySelector(".msg");
+    const pip = rows[p].querySelector(".spip"), msg = rows[p].querySelector(".msg");
     try {
       const t0 = performance.now();
-      const { text } = await callLLM({
-        provider: p, model: CONFIG.providers[p].testModel,
-        messages: [{ role: "user", content: 'Reply with exactly: ok' }],
-        maxTokens: 8,
-      });
-      const ms = Math.round(performance.now() - t0);
-      pip.className = "pip ok";
-      msg.textContent = `OK (${ms}ms) — "${(text || "").trim().slice(0, 40)}"`;
-    } catch (e) {
-      pip.className = "pip bad";
-      msg.textContent = `FAILED — ${e.message}`;
-    }
+      const { text } = await callLLM({ provider:p, model:CONFIG.providers[p].testModel,
+        messages:[{role:"user",content:"Reply with exactly: ok"}], maxTokens:8 });
+      pip.className = "spip ok"; msg.textContent = `OK (${Math.round(performance.now()-t0)}ms) — "${(text||"").trim().slice(0,40)}"`;
+    } catch (e) { pip.className="spip bad"; msg.textContent = `FAILED — ${e.message}`; }
   }));
   $("test").disabled = false;
 };
 
-hydrate();
+/* ============================== BOOT ============================== */
+renderCabinet();
+hydrateSettings();
 </script>
 </body>
 </html>
