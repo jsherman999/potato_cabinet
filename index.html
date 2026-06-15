@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Potato Cabinet</title>
+<style>
+  :root {
+    --bg: #1c1a17; --panel: #2a2620; --ink: #efe7d6; --muted: #a89b82;
+    --tater: #c9a35b; --line: #423b30; --ok: #6fbf73; --bad: #d9694e; --accent: #e0b35c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font: 15px/1.5 system-ui, sans-serif; background: var(--bg); color: var(--ink);
+  }
+  header {
+    padding: 22px 24px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 12px;
+  }
+  header h1 { font-size: 20px; margin: 0; font-weight: 650; }
+  header .sub { color: var(--muted); font-size: 13px; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px; margin-bottom: 20px;
+  }
+  .card h2 { font-size: 15px; margin: 0 0 14px; letter-spacing: .02em; text-transform: uppercase; color: var(--accent); }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 0 0 5px; }
+  .row { margin-bottom: 14px; }
+  input[type=password], input[type=text] {
+    width: 100%; padding: 9px 11px; background: #15130f; color: var(--ink);
+    border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 13px;
+  }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  button {
+    font: inherit; font-weight: 600; border: 1px solid var(--line); background: var(--tater);
+    color: #221d14; padding: 9px 16px; border-radius: 8px; cursor: pointer;
+  }
+  button.ghost { background: transparent; color: var(--ink); }
+  button:disabled { opacity: .55; cursor: default; }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .status { margin-top: 16px; display: grid; gap: 8px; }
+  .prov {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    background: #15130f; border: 1px solid var(--line); border-radius: 8px; font-size: 13px;
+  }
+  .pip { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: none; }
+  .pip.ok { background: var(--ok); } .pip.bad { background: var(--bad); }
+  .pip.run { background: var(--accent); animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: .3; } }
+  .prov .name { font-weight: 600; min-width: 96px; }
+  .prov .msg { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .note { font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <span style="font-size:26px">🥔</span>
+  <div>
+    <h1>Potato Cabinet</h1>
+    <div class="sub">Phase 0 — connection check &amp; key setup</div>
+  </div>
+</header>
+
+<main>
+  <div class="card">
+    <h2>API keys</h2>
+    <div class="row">
+      <label for="k-openai">OpenAI key (<span id="m-openai"></span>)</label>
+      <input id="k-openai" type="password" placeholder="sk-proj-…" autocomplete="off">
+    </div>
+    <div class="row">
+      <label for="k-openrouter">OpenRouter key (<span id="m-openrouter"></span>)</label>
+      <input id="k-openrouter" type="password" placeholder="sk-or-v1-…" autocomplete="off">
+    </div>
+    <div class="row">
+      <label for="k-anthropic">Anthropic key (<span id="m-anthropic"></span>)</label>
+      <input id="k-anthropic" type="password" placeholder="sk-ant-…" autocomplete="off">
+    </div>
+    <div class="actions">
+      <button id="save">Save keys</button>
+      <button id="forget" class="ghost">Forget keys</button>
+      <label style="display:inline-flex;align-items:center;gap:6px;margin:0;color:var(--ink)">
+        <input id="show" type="checkbox"> show
+      </label>
+    </div>
+    <p class="hint">Keys are stored only in this browser (localStorage) and sent only to the
+      provider you call. Nothing goes to any other server. Anthropic is hit directly with the
+      <code>anthropic-dangerous-direct-browser-access</code> header.</p>
+  </div>
+
+  <div class="card">
+    <h2>Test connections</h2>
+    <div class="actions">
+      <button id="test">Test all providers</button>
+      <span class="note">Pings each provider's test model with a one-word prompt.</span>
+    </div>
+    <div class="status" id="status"></div>
+  </div>
+</main>
+
+<script>
+"use strict";
+
+/* ============================== CONFIG ==============================
+   Single source of truth. Models per role default to the picks validated
+   in PLAN.md §11; everything is overridable here. */
+const CONFIG = {
+  providers: {
+    openai:     { label: "OpenAI",     endpoint: "https://api.openai.com/v1/chat/completions",      format: "openai",    testModel: "gpt-4.1-mini" },
+    openrouter: { label: "OpenRouter", endpoint: "https://openrouter.ai/api/v1/chat/completions",   format: "openai",    testModel: "google/gemini-2.5-flash" },
+    anthropic:  { label: "Anthropic",  endpoint: "https://api.anthropic.com/v1/messages",           format: "anthropic", testModel: "claude-haiku-4-5" },
+  },
+  // role -> {provider, model} (used by later phases)
+  roles: {
+    president:    { provider: "anthropic",  model: "claude-opus-4-8" },
+    orchestrator: { provider: "anthropic",  model: "claude-sonnet-4-6" },
+    secretary:    { provider: "openrouter", model: "openai/gpt-4o-mini" },
+    webResearch:  { provider: "openrouter", model: "google/gemini-2.5-flash:online" },
+  },
+  maxTokens: 1024,
+  anthropicVersion: "2023-06-01",
+  appTitle: "Potato Cabinet",
+};
+
+/* ============================== KEY STORE ============================== */
+const KEY_STORE = "pc_keys";
+const getKeys = () => { try { return JSON.parse(localStorage.getItem(KEY_STORE)) || {}; } catch { return {}; } };
+const getKey  = (p) => getKeys()[p] || "";
+function setKey(p, v) {
+  const k = getKeys();
+  if (v) k[p] = v; else delete k[p];
+  localStorage.setItem(KEY_STORE, JSON.stringify(k));
+}
+const forgetKeys = () => localStorage.removeItem(KEY_STORE);
+
+/* ============================ PROVIDER ADAPTER ============================
+   callLLM normalizes the three providers behind one interface.
+   Returns { text, raw }. Throws Error(message) on failure. */
+async function callLLM({ provider, model, system, messages, maxTokens, json }) {
+  const p = CONFIG.providers[provider];
+  if (!p) throw new Error(`Unknown provider: ${provider}`);
+  const key = getKey(provider);
+  if (!key) throw new Error(`No API key set for ${p.label}`);
+  const max = maxTokens || CONFIG.maxTokens;
+
+  if (p.format === "anthropic") {
+    const body = { model, max_tokens: max, messages };
+    if (system) body.system = system;
+    const res = await fetch(p.endpoint, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": CONFIG.anthropicVersion,
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error?.message || `HTTP ${res.status}`);
+    const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+    return { text, raw: data };
+  }
+
+  // OpenAI-compatible (openai + openrouter)
+  const msgs = system ? [{ role: "system", content: system }, ...messages] : messages;
+  const body = { model, max_tokens: max, messages: msgs };
+  if (json) body.response_format = { type: "json_object" };
+  const headers = { "content-type": "application/json", "authorization": `Bearer ${key}` };
+  if (provider === "openrouter") {
+    headers["HTTP-Referer"] = (location && location.origin && location.origin !== "null")
+      ? location.origin : "https://potato.cabinet.local";
+    headers["X-Title"] = CONFIG.appTitle;
+  }
+  const res = await fetch(p.endpoint, { method: "POST", headers, body: JSON.stringify(body) });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error?.message || `HTTP ${res.status}`);
+  return { text: data?.choices?.[0]?.message?.content ?? "", raw: data };
+}
+
+/* ============================== UI ============================== */
+const $ = (id) => document.getElementById(id);
+const PROVIDERS = Object.keys(CONFIG.providers);
+
+function hydrate() {
+  for (const p of PROVIDERS) {
+    $(`m-${p}`).textContent = CONFIG.providers[p].testModel;
+    $(`k-${p}`).value = getKey(p);
+  }
+}
+
+$("save").onclick = () => {
+  for (const p of PROVIDERS) setKey(p, $(`k-${p}`).value.trim());
+  flash($("save"), "Saved ✓");
+};
+$("forget").onclick = () => {
+  forgetKeys();
+  for (const p of PROVIDERS) $(`k-${p}`).value = "";
+  flash($("forget"), "Cleared");
+};
+$("show").onchange = (e) => {
+  for (const p of PROVIDERS) $(`k-${p}`).type = e.target.checked ? "text" : "password";
+};
+
+function flash(btn, msg) {
+  const old = btn.textContent; btn.textContent = msg; btn.disabled = true;
+  setTimeout(() => { btn.textContent = old; btn.disabled = false; }, 1100);
+}
+
+$("test").onclick = async () => {
+  // persist whatever is typed so the test uses current values
+  for (const p of PROVIDERS) setKey(p, $(`k-${p}`).value.trim());
+  const box = $("status"); box.innerHTML = "";
+  const rows = {};
+  for (const p of PROVIDERS) {
+    const el = document.createElement("div");
+    el.className = "prov";
+    el.innerHTML = `<span class="pip run"></span><span class="name">${CONFIG.providers[p].label}</span><span class="msg">testing ${CONFIG.providers[p].testModel}…</span>`;
+    box.appendChild(el); rows[p] = el;
+  }
+  $("test").disabled = true;
+  await Promise.all(PROVIDERS.map(async (p) => {
+    const pip = rows[p].querySelector(".pip");
+    const msg = rows[p].querySelector(".msg");
+    try {
+      const t0 = performance.now();
+      const { text } = await callLLM({
+        provider: p, model: CONFIG.providers[p].testModel,
+        messages: [{ role: "user", content: 'Reply with exactly: ok' }],
+        maxTokens: 8,
+      });
+      const ms = Math.round(performance.now() - t0);
+      pip.className = "pip ok";
+      msg.textContent = `OK (${ms}ms) — "${(text || "").trim().slice(0, 40)}"`;
+    } catch (e) {
+      pip.className = "pip bad";
+      msg.textContent = `FAILED — ${e.message}`;
+    }
+  }));
+  $("test").disabled = false;
+};
+
+hydrate();
+</script>
+</body>
+</html>
