@@ -30,11 +30,18 @@ the design could go another way; flag any you want changed before build.
    keys living in their own browser is acceptable; we will say so plainly in the UI and
    never transmit keys anywhere except the three model providers.
 4. **Models are configurable in a `CONFIG` constants block** at the top of the script,
-   defaulting to (readme-driven):
-   - Secretaries (×15): an OpenRouter/OpenAI mid-tier model — default
-     `openai/gpt-4o-mini` via OpenRouter (cheap, fast, 15 parallel calls). Configurable per seat.
-   - Orchestrator (chief of staff): higher capability — default **`claude-sonnet-4-6`** (Anthropic).
+   defaulting to (readme-driven + validated live on 2026-06-15, see §11):
+   - Secretaries (×15): a cheap, capable model — default **`openai/gpt-4o-mini`** via
+     OpenRouter. Validated ultra-cheap alternative: **`qwen/qwen3-235b-a22b-2507`**
+     ($0.09/$0.10 per 1M) which routed and grounded as well as far pricier models.
+     Configurable per seat.
+   - Orchestrator (chief of staff): higher capability — default **`claude-sonnet-4-6`**
+     (Anthropic). The JSON decomposition step is also handled cleanly by
+     **`openai/gpt-4.1-mini`** (user's pick for JSON/text; validated), a cheaper option.
    - President: **`claude-opus-4-8`** (Anthropic), per readme.
+   - **Web-research role** (president's news snapshot; link/attachment enrichment):
+     **`google/gemini-2.5-flash:online`** via OpenRouter (user's pick for inexpensive web
+     research; the `:online` suffix enables web search and returns citations — validated).
 5. **Voice** uses the built-in browser **Web Speech API** (`speechSynthesis`) — no
    dependency, works offline, distinct voice/pitch per potato. Quality varies by OS;
    it is optional and toggleable.
@@ -241,3 +248,43 @@ A single `index.html` the user opens locally; enters keys; types (or lets the pr
 pick) a real-world problem; watches the right potato secretaries get tasked, work,
 announce, and report; reads a synthesized cross-department solution; and can interrogate
 any secretary about it — all in the browser, no server.
+
+---
+
+## 11. Model research findings (validated live, 2026-06-15)
+
+Tested against a live, web-sourced current event — the federal government barring
+Los Angeles's LAHSA from federal homelessness funds (June 2026), fetched via
+`google/gemini-2.5-flash:online` with citations. Two probes:
+
+- **Probe 1 — grounded JSON routing (viability):** all 6 models returned valid strict
+  JSON, all correctly routed to **HUD** as primary, all named **real** federal programs
+  (Continuum of Care, ESG, HUD-VASH, HOME, Section 8). No fabricated programs.
+- **Probe 2 — ungrounded specifics (hallucination):** asked for exact LAHSA/HUD figures
+  with no context provided. All 6 honestly declined and cited their knowledge cutoff;
+  **none fabricated** figures. Confirms the design: gather facts with a web model, then
+  feed them as grounded context to the secretary agents.
+
+**Cost (exact OpenRouter-charged $, both probes combined; live OpenRouter pricing):**
+
+| Model | $ in /1M | $ out /1M | tok in | tok out | Cost (2 probes) | Proj. $/1k calls |
+|---|---:|---:|---:|---:|---:|---:|
+| meta-llama/llama-3.3-70b-instruct | 0.100 | 0.320 | 226 | 198 | $0.000098 | $0.05 |
+| qwen/qwen3-235b-a22b-2507 | 0.090 | 0.100 | 236 | 339 | $0.000152 | $0.08 |
+| deepseek/deepseek-chat-v3-0324 | 0.200 | 0.770 | 192 | 398 | $0.000340 | $0.17 |
+| openai/gpt-4.1-mini | 0.400 | 1.600 | 194 | 227 | $0.000441 | $0.22 |
+| google/gemini-2.5-flash | 0.300 | 2.500 | 181 | 322 | $0.000859 | $0.43 |
+| openai/gpt-5.4-mini | 0.750 | 4.500 | 192 | 367 | $0.001796 | $0.90 |
+
+Takeaways:
+- **Cheapest viable secretary models:** `llama-3.3-70b` and `qwen3-235b-a22b-2507` —
+  correct routing + honest hedging at ~$0.05–0.08 per 1,000 calls.
+- `gpt-4.1-mini` — reliable strict JSON; good fit for the orchestrator's decomposition.
+- `gemini-2.5-flash:online` — the web-research role (returns citations). Plain calls are
+  ~$0.43/1k; the `:online` web search adds a per-search surcharge.
+- `gpt-5.4-mini` — newest 5.x mini, but ~4× `gpt-4.1-mini` / ~18× the cheapest options
+  (reasoning tokens inflate output). Reserve for hard reasoning, not routine seats.
+
+Endpoint note: the dev machine's `.zshrc` points `ANTHROPIC_BASE_URL` at a GLM-5 proxy;
+real-Anthropic calls (Opus 4.8 president, Sonnet 4.6 orchestrator) must force
+`https://api.anthropic.com` explicitly.
