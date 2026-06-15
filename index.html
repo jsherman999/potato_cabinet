@@ -127,6 +127,27 @@
   @keyframes blink { 50% { opacity:.3; } }
   .prov .name { font-weight:600; min-width:96px; }
   .prov .msg { color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  /* ---------------- per-secretary Q&A modal ---------------- */
+  .seat { cursor:pointer; }
+  .qa-modal { position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; z-index:50; padding:16px; }
+  .qa-modal[hidden] { display:none; }
+  .qa-card { width:min(94vw,520px); max-height:84vh; display:flex; flex-direction:column;
+             background:var(--panel); border:1px solid var(--line); border-radius:14px;
+             box-shadow:0 24px 70px rgba(0,0,0,.6); overflow:hidden; }
+  .qa-head { display:flex; align-items:center; gap:12px; padding:13px 16px; border-bottom:1px solid var(--line); }
+  .qa-head .qa-avatar svg { width:46px; height:54px; display:block; }
+  .qa-head .qa-name { font-weight:700; font-size:15px; }
+  .qa-head .qa-sub { font-size:12px; color:var(--muted); }
+  .qa-head button { margin-left:auto; padding:6px 11px; }
+  .qa-log { flex:1; overflow-y:auto; padding:14px 16px; display:flex; flex-direction:column; gap:9px; min-height:130px; }
+  .qa-log:empty::before { content:"Ask a question below."; color:var(--muted); font-size:13px; }
+  .qa-msg { max-width:86%; padding:8px 11px; border-radius:10px; font-size:13.5px; white-space:pre-wrap; line-height:1.45; }
+  .qa-msg.u { align-self:flex-end; background:#3a3326; }
+  .qa-msg.a { align-self:flex-start; background:#15130f; border:1px solid var(--line); }
+  .qa-input { display:flex; gap:8px; padding:12px 16px; border-top:1px solid var(--line); }
+  .qa-input input { flex:1; }
+  .qa-hint { padding:0 16px 12px; font-size:11px; color:var(--muted); }
 </style>
 </head>
 <body>
@@ -134,7 +155,7 @@
   <span style="font-size:26px">🥔</span>
   <div>
     <h1>Potato Cabinet</h1>
-    <div class="sub">Phase 3 — announcements &amp; voice</div>
+    <div class="sub">Phase 4 — ask the cabinet</div>
   </div>
 </header>
 
@@ -160,7 +181,8 @@
   <div class="card">
     <h2>The Cabinet</h2>
     <p class="cabinet-note">The President presides from the desk up top. The 15 secretaries ring the Chief of Staff
-      in the center — and turn to face them when they're tasked or reporting back.</p>
+      in the center — and turn to face them when they're tasked or reporting back.
+      <strong>Click any potato to ask it a question.</strong></p>
     <div class="legend" id="legend"></div>
     <div style="height:14px"></div>
     <div class="president-stage" id="president-stage"></div>
@@ -193,6 +215,22 @@
       the provider you call. Anthropic is hit directly via the <code>anthropic-dangerous-direct-browser-access</code> header.</p>
     <div class="status" id="status"></div>
   </details>
+
+  <div id="qa" class="qa-modal" hidden>
+    <div class="qa-card">
+      <div class="qa-head">
+        <span class="qa-avatar" id="qaAvatar"></span>
+        <div><div class="qa-name" id="qaName"></div><div class="qa-sub" id="qaSub"></div></div>
+        <button id="qaClose" class="ghost">✕</button>
+      </div>
+      <div class="qa-log" id="qaLog"></div>
+      <div class="qa-input">
+        <input id="qaText" type="text" placeholder="Ask this secretary a question…">
+        <button id="qaAsk">Ask</button>
+      </div>
+      <div class="qa-hint" id="qaHint"></div>
+    </div>
+  </div>
 </main>
 
 <script>
@@ -413,7 +451,8 @@ function voiceInstructions(id) {
 // southern interjections sprinkled into announcements "at times"
 const SOUTHERN_PHRASES = ["Well shoot.","Goll dang it.","Well don't that beat all.","No friggin' way.",
   "Well I'll be.","Bless your heart.","Hoo-wee.","Lord have mercy.","Dadgum it.","Well butter my biscuit.",
-  "Y'all ain't gonna believe this.","Shoot fire.","Reckon that'll do.","Aw, hush my mouth."];
+  "Y'all ain't gonna believe this.","Shoot fire.","Reckon that'll do.","Aw, hush my mouth.",
+  "Friggin' A.","Well friggin' finally.","Ain't that the friggin' truth.","That's friggin' somethin'."];
 const southernSpice = () => Math.random() < 0.55 ? pick(SOUTHERN_PHRASES) + " " : "";
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const estDuration = (t) => Math.max(1200, Math.round((t || "").length * 55));
@@ -481,14 +520,14 @@ function speakBrowser(text, seatId) {
 if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { _voices = speechSynthesis.getVoices(); };
 
 const TASKED_LINES = [
-  (s) => `${s.dept} here — Chief of Staff handed us a job.`,
-  (s) => `This here's ${s.dept}. We got our orders.`,
-  (s) => `${s.dept} reportin' for duty. Chief of Staff put us to work.`,
+  (s) => `${s.dept} here — Chief of Staff handed us a friggin' job.`,
+  (s) => `This here's ${s.dept}. We got our friggin' orders.`,
+  (s) => `${s.dept} reportin' for duty. Chief of Staff put us to friggin' work.`,
 ];
 const DONE_LINES = [
-  (s) => `${s.dept}'s plan is ready.`,
-  (s) => `Alright now, ${s.dept}'s got a plan put together.`,
-  (s) => `${s.dept} here — our plan's all done.`,
+  (s) => `${s.dept}'s plan is friggin' ready.`,
+  (s) => `Alright now, ${s.dept}'s got a friggin' plan put together.`,
+  (s) => `${s.dept} here — our work is friggin' done.`,
 ];
 const announceTasked = (s) => southernSpice() + pick(TASKED_LINES)(s);
 const announceDone   = (s) => southernSpice() + pick(DONE_LINES)(s);
@@ -534,6 +573,7 @@ function seatEl(seat, kind) {
     `<div class="bubble" hidden></div>
      <div class="potato">${potatoSVG(seat.color, hash(seat.id))}<span class="pip"></span></div>
      <div class="seat-label"><div class="dept">${ABBR[seat.id] || seat.dept}</div><div class="title">${seat.seat}</div></div>`;
+  el.addEventListener("click", () => openQA(seat));
   return el;
 }
 const seatState = {};
@@ -575,6 +615,66 @@ function setBubble(id, text) {
 }
 function resetStates() { for (const s of ALL_SEATS) { setState(s.id, "idle"); setBubble(s.id, ""); } }
 
+/* ============================== PER-SECRETARY Q&A ============================== */
+let lastCase = "";          // case file from the most recent run (context for Q&A)
+const seatPlans = {};       // id -> that department's plan from the most recent run
+const convo = {};           // id -> running [{role,content}] Q&A history
+let qaSeat = null;
+
+function qaSys(seat) {
+  const base = `You are the U.S. ${seat.seat}${(seat.id === "cos" || seat.id === "president") ? "" : ` (Department of ${seat.dept})`}. Remit: ${seat.scope}
+You are taking questions from the public or White House staff. Answer in character — plainly and helpfully, with a touch of friendly Southern warmth. Keep answers under ~120 words. Don't fabricate specific statutes or exact dollar figures you're unsure of.`;
+  const plan = seatPlans[seat.id];
+  if (lastCase && plan)
+    return base + `\n\nThere is an active matter before the Cabinet.\nCASE FILE: ${lastCase}\nYOUR DEPARTMENT'S PLAN ON IT:\n${plan}\nWhen the question relates to this matter, answer specifically about it and your plan.`;
+  if (lastCase && seat.id !== "president" && seat.id !== "cos")
+    return base + `\n\nThere is an active Cabinet matter, but your department was not assigned to it. If asked about it you may comment generally from your department's perspective; otherwise answer generally about what your department does.`;
+  return base + `\n\nThere is no active task assigned to you right now. Answer generally about what your department does and is responsible for.`;
+}
+async function askSecretary(seat, question) {
+  const hist = convo[seat.id] || (convo[seat.id] = []);
+  const { text } = await callLLM({ ...CONFIG.roles.secretary, system: qaSys(seat),
+    messages: [...hist, { role:"user", content: question }], maxTokens: 400 });
+  hist.push({ role:"user", content: question }, { role:"assistant", content: text });
+  return text;
+}
+function qaContextHint(seat) {
+  if (lastCase && seatPlans[seat.id]) return "Answering about the active case and this department's plan.";
+  if (lastCase && seat.id !== "president" && seat.id !== "cos") return "No task assigned here; answering about the department generally.";
+  return "Answering about the department generally.";
+}
+function qaMsg(cls, text) {
+  const el = document.createElement("div"); el.className = "qa-msg " + cls; el.textContent = text;
+  $("qaLog").appendChild(el); el.scrollIntoView({ block:"nearest" });
+  return el;
+}
+function openQA(seat) {
+  qaSeat = seat; unlockAudio();
+  $("qaAvatar").innerHTML = potatoSVG(seat.color, hash(seat.id));
+  $("qaName").textContent = seat.dept === seat.seat ? seat.seat : seat.dept;
+  $("qaSub").textContent = seat.dept === seat.seat ? "" : seat.seat;
+  $("qaHint").textContent = qaContextHint(seat);
+  $("qaLog").innerHTML = "";
+  for (const m of (convo[seat.id] || [])) qaMsg(m.role === "user" ? "u" : "a", m.content);
+  $("qa").hidden = false; $("qaText").focus();
+}
+function closeQA() { $("qa").hidden = true; qaSeat = null; }
+async function doAsk() {
+  const q = $("qaText").value.trim();
+  if (!q || !qaSeat) return;
+  const seat = qaSeat, prov = CONFIG.roles.secretary.provider;
+  if (!getKey(prov)) { qaMsg("a", `Set the ${CONFIG.providers[prov].label} key in Settings first.`); return; }
+  $("qaText").value = ""; $("qaAsk").disabled = true;
+  qaMsg("u", q);
+  const bubble = qaMsg("a", "…");
+  try {
+    const ans = await askSecretary(seat, q);
+    bubble.textContent = ans;
+    announce(seat.id, ans);     // speak the answer in the seat's southern voice
+  } catch (e) { bubble.textContent = "Sorry — " + e.message; }
+  $("qaAsk").disabled = false; $("qaText").focus();
+}
+
 /* ============================== TRANSCRIPT + RUN ============================== */
 let running = false;
 function clearTranscript(){ $("transcript").innerHTML = ""; }
@@ -601,6 +701,7 @@ async function runCase(caseText) {
   }
   running = true; $("run").disabled = true; resetStates(); clearTranscript();
   setState("cos","working"); setBubble("cos","On it");
+  lastCase = caseText; Object.keys(seatPlans).forEach(k => delete seatPlans[k]);   // fresh Q&A context
 
   // 1. decompose
   txStatus("Chief of Staff analyzing the problem…");
@@ -621,6 +722,7 @@ async function runCase(caseText) {
       const planText = await dispatch(a.ref, caseText, a.brief);
       setState(a.ref.id,"done"); setBubble(a.ref.id,"Done ✓");
       tx("dept", `${a.ref.dept} — ${a.ref.seat}`, planText, a.ref.color);
+      seatPlans[a.ref.id] = planText;
       announce(a.ref.id, announceDone(a.ref));
       return { id:a.ref.id, dept:a.ref.dept, seat:a.ref.seat, plan:planText, ref:a.ref };
     } catch (e) { setState(a.ref.id,"error"); setBubble(a.ref.id,"Error"); tx("error", a.ref.dept, e.message); return null; }
@@ -638,6 +740,7 @@ async function runCase(caseText) {
         const upd = await coordinate(r.ref, caseText, r.plan, others);
         setState(r.id,"done"); setBubble(r.id,"Aligned ✓");
         tx("dept", `${r.dept} — coordinated plan`, upd, r.ref.color);
+        seatPlans[r.id] = upd;
         return { ...r, plan: upd };
       } catch (e) { setState(r.id,"done"); return r; }
     }));
@@ -656,6 +759,12 @@ $("run").onclick = () => { unlockAudio(); runCase($("caseInput").value); };
 document.querySelectorAll("[data-ex]").forEach(b => b.onclick = () => { $("caseInput").value = EXAMPLES[b.dataset.ex]; });
 $("voice").checked = voiceOn();
 $("voice").onchange = (e) => { setVoicePref(e.target.checked); if (e.target.checked) unlockAudio(); };
+
+$("qaAsk").onclick = doAsk;
+$("qaText").addEventListener("keydown", (e) => { if (e.key === "Enter") doAsk(); });
+$("qaClose").onclick = closeQA;
+$("qa").addEventListener("click", (e) => { if (e.target === $("qa")) closeQA(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("qa").hidden) closeQA(); });
 
 /* ============================== SETTINGS ============================== */
 const PROVIDERS = Object.keys(CONFIG.providers);
