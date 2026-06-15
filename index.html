@@ -47,14 +47,28 @@
   .desk .plate { font-size:10px; letter-spacing:.09em; text-transform:uppercase; color:#ecdcb4;
                  background:#241b10; padding:2px 9px; border-radius:3px; border:1px solid #5a4326; }
 
-  /* arena: Chief of Staff centered, 15 secretaries on the ring */
-  .arena { position:relative; width:min(94vw,800px); aspect-ratio:1/1; margin:6px auto 0; }
-  .arena .seat { position:absolute; transform:translate(-50%,-50%); width:94px; }
-  .arena .tater { width:58px; height:68px; }
-  .arena .seat .title { display:none; }            /* full title shows on hover (title attr) */
-  .cos-seat { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:120px; z-index:2; }
-  .cos-seat .tater { width:90px; height:106px; }
+  /* cabinet layout: President + Chief of Staff stacked, secretaries in a basket */
+  /* Chief of Staff sits just below the President */
+  .cos-stage { display:flex; justify-content:center; margin:0 0 6px; }
+  .cos-seat { width:130px; }
+  .cos-seat .tater { width:92px; height:108px; }
   .cos-seat .seat-label .dept { color:var(--accent); }
+  /* the 15 secretaries jumbled in a basket (labels stay readable on dark pills) */
+  .basket { position:relative; width:min(94vw,760px); height:360px; margin:16px auto 0; overflow:visible;
+            border:2px solid #2c1f10; border-top:none; border-radius:18px 18px 120px 120px / 18px 18px 70px 70px;
+            background:
+              repeating-linear-gradient(45deg, rgba(0,0,0,.13) 0 7px, transparent 7px 14px),
+              repeating-linear-gradient(-45deg, rgba(0,0,0,.13) 0 7px, transparent 7px 14px),
+              linear-gradient(#5e431f,#3a2914);
+            box-shadow: inset 0 -26px 50px rgba(0,0,0,.45), 0 10px 24px rgba(0,0,0,.45); }
+  .basket::before { content:""; position:absolute; top:-12px; left:-3px; right:-3px; height:22px;
+            background:linear-gradient(#8a6336,#5e431f); border:2px solid #2c1f10; border-radius:14px;
+            box-shadow:0 3px 8px rgba(0,0,0,.4); }
+  .basket .seat { position:absolute; transform:translate(-50%,-50%); width:90px; padding:2px; }
+  .basket .tater { width:56px; height:66px; }
+  .basket .seat .title { display:none; }
+  .basket .seat-label { margin-top:2px; }
+  .basket .seat-label .dept { background:rgba(20,16,10,.74); padding:1px 6px; border-radius:7px; }
   .bubble { position:absolute; top:-6px; left:50%; transform:translate(-50%,-100%);
             background:#15130f; border:1px solid var(--line); color:var(--ink); font-size:11px;
             padding:5px 8px; border-radius:8px; max-width:150px; white-space:normal; z-index:5;
@@ -97,9 +111,9 @@
   .actions { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:12px; }
   .examples { display:flex; gap:8px; flex-wrap:wrap; }
   .note { font-size:12px; color:var(--muted); }
-  .attach { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:10px; }
   .attach-btn { font-size:13px; font-weight:600; color:#221d14; background:var(--tater); border:1px solid var(--line); padding:7px 12px; border-radius:8px; cursor:pointer; }
-  .attach-list { display:flex; gap:6px; flex-wrap:wrap; }
+  .ex-select { font:inherit; font-size:13px; background:#15130f; color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:8px 10px; cursor:pointer; }
+  .attach-list { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
   .chip { display:inline-flex; align-items:center; gap:6px; font-size:12px; background:#15130f; border:1px solid var(--line); border-radius:14px; padding:3px 6px 3px 10px; }
   .chip .chiprm { background:transparent; border:none; color:var(--muted); cursor:pointer; font-size:12px; padding:0 2px; font-weight:700; }
   .entry.attach { border-color:#7aa6c2; }
@@ -165,7 +179,7 @@
   <span style="font-size:26px">🥔</span>
   <div>
     <h1>Potato Cabinet</h1>
-    <div class="sub">Phase 6 — attachments (links &amp; images)</div>
+    <div class="sub">a talking-potato presidential cabinet</div>
   </div>
 </header>
 
@@ -176,18 +190,19 @@
     <div class="actions">
       <button id="run">▶ Run</button>
       <button id="prez">🦅 President: auto-pick a problem</button>
-      <span class="examples">
-        <button class="ghost" data-ex="drought">Drought example</button>
-        <button class="ghost" data-ex="military">Military buildup example</button>
-      </span>
+      <label class="attach-btn">📎 Attach image(s)<input id="files" type="file" accept="image/*" multiple hidden></label>
+      <select id="exSelect" class="ex-select">
+        <option value="">Load an example…</option>
+        <option value="drought">Drought relief</option>
+        <option value="military">Military buildup</option>
+        <option value="hurricane">Hurricane disaster</option>
+        <option value="cyber">Cyberattack</option>
+      </select>
       <label style="display:inline-flex;align-items:center;gap:6px;margin:0;color:var(--ink)">
         <input id="voice" type="checkbox"> 🔊 Voice
       </label>
     </div>
-    <div class="attach">
-      <label class="attach-btn">📎 Attach image(s)<input id="files" type="file" accept="image/*" multiple hidden></label>
-      <span class="attach-list" id="attachList"></span>
-    </div>
+    <div class="attach-list" id="attachList"></div>
     <p class="note" style="margin-top:10px">Paste links right in the text and attach images above — both get
       fetched/analyzed into the case. The Chief of Staff (<span id="orchModel"></span>) then routes to the relevant
       departments (<span id="secModel"></span>) and synthesizes one solution. Set keys in Settings first.</p>
@@ -201,7 +216,8 @@
     <div class="legend" id="legend"></div>
     <div style="height:14px"></div>
     <div class="president-stage" id="president-stage"></div>
-    <div class="arena" id="arena"></div>
+    <div class="cos-stage" id="cos-stage"></div>
+    <div class="basket" id="basket"></div>
   </div>
 
   <div class="card">
@@ -313,6 +329,8 @@ const STATE_COLORS = { idle:"var(--st-idle)", assigned:"var(--st-assigned)", wor
 const EXAMPLES = {
   drought:"American farmers across the Midwest are facing severe revenue shortfalls after a prolonged drought destroyed much of this season's corn and soybean harvest.",
   military:"A large, unexplained military buildup by a hostile power along NATO's eastern border in Europe is being viewed as threatening to regional stability and U.S. allies.",
+  hurricane:"A Category 4 hurricane has struck the Gulf Coast, destroying tens of thousands of homes, knocking out power to over a million customers, and disrupting fuel and food supply chains across Louisiana and Texas.",
+  cyber:"A sophisticated ransomware attack has crippled hospital systems and a major regional power utility, with attackers demanding payment while patient care and the grid are disrupted across three states.",
 };
 
 /* ============================== KEY STORE ============================== */
@@ -634,18 +652,26 @@ function renderCabinet() {
   desk.innerHTML = `<span class="plate">The President</span>`;
   stage.appendChild(desk);
 
-  // Arena: Chief of Staff in the center, secretaries on a ring facing inward
-  const arena = $("arena");
-  arena.appendChild(seatEl(COS, "cos"));
-  const N = SECRETARIES.length, R = 43, amp = 4;
+  // Chief of Staff just below the President
+  $("cos-stage").appendChild(seatEl(COS, "cos"));
+
+  // The 15 secretaries jumbled in a basket; labels stay visible, and they look up at the COS when active
+  const basket = $("basket"), cols = 5, amp = 4;
   SECRETARIES.forEach((s, i) => {
-    const ang = (-90 + i * (360 / N)) * Math.PI / 180;
     const el = seatEl(s, "secretary");
-    el.style.left = (50 + R * Math.cos(ang)).toFixed(2) + "%";
-    el.style.top  = (50 + R * Math.sin(ang)).toFixed(2) + "%";
-    el.style.setProperty("--gx", (-amp * Math.cos(ang)).toFixed(2) + "px");  // look toward the center
-    el.style.setProperty("--gy", (-amp * Math.sin(ang)).toFixed(2) + "px");
-    arena.appendChild(el);
+    const col = i % cols, row = Math.floor(i / cols), h = hash(s.id);
+    const jx = ((h % 100) / 100 - 0.5) * 12;            // jitter ±6%
+    const jy = (((h >> 7) % 100) / 100 - 0.5) * 14;     // jitter ±7%
+    const left = 6 + (col + 0.5) / cols * 88 + jx;
+    const top  = 14 + (row + 0.5) / 3 * 72 + jy;
+    const rot  = ((h >> 3) % 30) - 15;                  // tilt ±15° — tossed-in look
+    el.style.left = left.toFixed(1) + "%";
+    el.style.top  = top.toFixed(1) + "%";
+    el.style.zIndex = String(Math.round(top));          // lower potatoes sit in front (pile)
+    el.querySelector(".potato").style.transform = `rotate(${rot}deg)`;
+    el.style.setProperty("--gx", ((0.5 - (col + 0.5) / cols) * amp * 1.4).toFixed(2) + "px"); // toward COS (up-center)
+    el.style.setProperty("--gy", (-amp).toFixed(2) + "px");
+    basket.appendChild(el);
   });
 
   for (const s of ALL_SEATS) seatState[s.id] = "idle";
@@ -908,7 +934,7 @@ $("files").addEventListener("change", async (e) => {
   for (const f of e.target.files) { if (f.type.startsWith("image/")) attachedImages.push({ name: f.name, dataURL: await readFileDataURL(f) }); }
   e.target.value = ""; renderAttachments();
 });
-document.querySelectorAll("[data-ex]").forEach(b => b.onclick = () => { $("caseInput").value = EXAMPLES[b.dataset.ex]; });
+$("exSelect").onchange = (e) => { if (EXAMPLES[e.target.value]) $("caseInput").value = EXAMPLES[e.target.value]; e.target.value = ""; };
 $("voice").checked = voiceOn();
 $("voice").onchange = (e) => { setVoicePref(e.target.checked); updateMuteBtn(); if (e.target.checked) unlockAudio(); else stopSpeech(); };
 
