@@ -21,19 +21,40 @@
   .card h2 { font-size:14px; margin:0 0 12px; letter-spacing:.02em; text-transform:uppercase; color:var(--accent); }
   .cabinet-note { color:var(--muted); font-size:13px; margin:0 0 14px; }
 
-  /* ---------------- cabinet grid ---------------- */
-  .president-row { display:flex; justify-content:center; margin-bottom:18px; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(140px,1fr)); gap:14px; }
+  /* ---------------- cabinet: a ring around the Chief of Staff ---------------- */
   .seat { position:relative; display:flex; flex-direction:column; align-items:center; text-align:center;
-          padding:10px 6px 8px; border-radius:12px; user-select:none; }
+          padding:8px 6px 6px; border-radius:12px; user-select:none; }
   .potato { position:relative; border-radius:26px; padding:4px; box-shadow:0 0 0 2px transparent; transition:box-shadow .2s; }
-  .tater { display:block; animation:bob 3.6s ease-in-out infinite; }
-  @keyframes bob { 50% { transform:translateY(-5px); } }
-  .pip { position:absolute; top:2px; right:2px; width:12px; height:12px; border-radius:50%;
+  .tater { display:block; }                       /* no float */
+  .pip { position:absolute; top:2px; right:2px; width:11px; height:11px; border-radius:50%;
          background:var(--st-idle); border:2px solid var(--panel); }
-  .seat-label { margin-top:6px; }
-  .seat-label .dept { font-weight:650; font-size:13px; }
-  .seat-label .title { font-size:11px; color:var(--muted); line-height:1.25; margin-top:1px; }
+  .seat-label { margin-top:5px; }
+  .seat-label .dept { font-weight:650; font-size:12px; }
+  .seat-label .title { font-size:10px; color:var(--muted); line-height:1.2; margin-top:1px; }
+
+  /* gaze: eyes shift toward the Chief of Staff while a secretary is active */
+  .eyes { transition:transform .4s ease; }
+  .seat.looking .eyes { transform:translate(var(--gx,0px), var(--gy,0px)); }
+
+  /* President behind a desk, above it all */
+  .president-stage { position:relative; display:flex; flex-direction:column; align-items:center; margin:2px 0 24px; }
+  .president-stage .seat { padding-bottom:0; }
+  .president-seat .seat-label { display:none; }
+  .desk { margin-top:-30px; width:200px; height:48px; z-index:3;
+          background:linear-gradient(#6e4c2c,#3e2c18); border:1px solid #2c2012;
+          border-radius:9px 9px 5px 5px; box-shadow:0 7px 16px rgba(0,0,0,.45);
+          display:flex; align-items:center; justify-content:center; }
+  .desk .plate { font-size:10px; letter-spacing:.09em; text-transform:uppercase; color:#ecdcb4;
+                 background:#241b10; padding:2px 9px; border-radius:3px; border:1px solid #5a4326; }
+
+  /* arena: Chief of Staff centered, 15 secretaries on the ring */
+  .arena { position:relative; width:min(94vw,800px); aspect-ratio:1/1; margin:6px auto 0; }
+  .arena .seat { position:absolute; transform:translate(-50%,-50%); width:94px; }
+  .arena .tater { width:58px; height:68px; }
+  .arena .seat .title { display:none; }            /* full title shows on hover (title attr) */
+  .cos-seat { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:120px; z-index:2; }
+  .cos-seat .tater { width:90px; height:106px; }
+  .cos-seat .seat-label .dept { color:var(--accent); }
   .bubble { position:absolute; top:-6px; left:50%; transform:translate(-50%,-100%);
             background:#15130f; border:1px solid var(--line); color:var(--ink); font-size:11px;
             padding:5px 8px; border-radius:8px; max-width:150px; white-space:normal; z-index:5;
@@ -138,11 +159,12 @@
 
   <div class="card">
     <h2>The Cabinet</h2>
-    <p class="cabinet-note">President up top; the 15 secretaries fill the grid. They light up as the Chief of Staff tasks them.</p>
+    <p class="cabinet-note">The President presides from the desk up top. The 15 secretaries ring the Chief of Staff
+      in the center — and turn to face them when they're tasked or reporting back.</p>
     <div class="legend" id="legend"></div>
     <div style="height:14px"></div>
-    <div class="president-row" id="president-row"></div>
-    <div class="grid" id="grid"></div>
+    <div class="president-stage" id="president-stage"></div>
+    <div class="arena" id="arena"></div>
   </div>
 
   <div class="card">
@@ -220,7 +242,11 @@ const SECRETARIES = [
   { id:"va",          dept:"Veterans Affairs", seat:"Secretary of Veterans Affairs",          color:"#6f93b0", scope:"Veteran healthcare, benefits, and services." },
   { id:"dhs",         dept:"Homeland Security", seat:"Secretary of Homeland Security",         color:"#3f6fb0", scope:"Borders, immigration, disaster response (FEMA), cybersecurity." },
 ];
-const ALL_SEATS = [PRESIDENT, ...SECRETARIES];
+const COS = { id:"cos", seat:"Chief of Staff", dept:"Chief of Staff", color:"#9aa7b3",
+  scope:"Orchestrates the cabinet on the President's behalf." };
+const ALL_SEATS = [PRESIDENT, COS, ...SECRETARIES];
+// short labels for the ring (full title stays on hover)
+const ABBR = { agriculture:"USDA", transport:"DOT", va:"VA", dhs:"DHS" };
 const STATES = ["idle","assigned","working","speaking","done","error"];
 const STATE_COLORS = { idle:"var(--st-idle)", assigned:"var(--st-assigned)", working:"var(--st-working)",
                        speaking:"var(--st-speaking)", done:"var(--st-done)", error:"var(--st-error)" };
@@ -435,7 +461,16 @@ const announceDone   = (s) => `${s.dept} reporting: our plan is ready.`;
 
 /* ============================== POTATO + CABINET UI ============================== */
 const $ = (id) => document.getElementById(id);
-function potatoSVG(color) {
+function eyebrows(seed) {
+  const r = (n) => ((seed >> (n * 3)) % 7) - 3;            // -3..3, deterministic per seat
+  const lt = r(0) * 0.7, rt = r(1) * 0.7;                  // brow tilt
+  const ly = 41 + (r(2) % 3), ry = 41 + (r(3) % 3);        // brow height
+  const lb = `M30 ${(ly + lt).toFixed(1)} Q38 ${(ly - 2).toFixed(1)} 46 ${(ly - lt).toFixed(1)}`;
+  const rb = `M54 ${(ry - rt).toFixed(1)} Q62 ${(ry - 2).toFixed(1)} 70 ${(ry + rt).toFixed(1)}`;
+  return `<path d="${lb}" stroke="#5a4326" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+          <path d="${rb}" stroke="#5a4326" stroke-width="2.6" fill="none" stroke-linecap="round"/>`;
+}
+function potatoSVG(color, seed) {
   const g = "g-" + color.slice(1);
   return `<svg class="tater" viewBox="0 0 100 118" width="88" height="104" aria-hidden="true">
     <defs><radialGradient id="${g}" cx="40%" cy="32%" r="78%">
@@ -445,35 +480,60 @@ function potatoSVG(color) {
     <ellipse cx="27" cy="46" rx="3" ry="2" fill="#9c7434" opacity=".5"/>
     <ellipse cx="72" cy="78" rx="3.4" ry="2.2" fill="#9c7434" opacity=".5"/>
     <ellipse cx="63" cy="33" rx="2.2" ry="1.6" fill="#9c7434" opacity=".5"/>
-    <ellipse class="eye" cx="38" cy="54" rx="5" ry="6.5" fill="#2a2018"/>
-    <ellipse class="eye" cx="64" cy="54" rx="5" ry="6.5" fill="#2a2018"/>
-    <circle cx="40" cy="51" r="1.6" fill="#fff" opacity=".85"/>
-    <circle cx="66" cy="51" r="1.6" fill="#fff" opacity=".85"/>
+    ${eyebrows(seed)}
+    <g class="eyes">
+      <ellipse class="eye" cx="38" cy="54" rx="5" ry="6.5" fill="#2a2018"/>
+      <ellipse class="eye" cx="64" cy="54" rx="5" ry="6.5" fill="#2a2018"/>
+      <circle cx="40" cy="51" r="1.6" fill="#fff" opacity=".85"/>
+      <circle cx="66" cy="51" r="1.6" fill="#fff" opacity=".85"/>
+    </g>
     <ellipse class="mouth" cx="51" cy="80" rx="11" ry="5.5" fill="#3a241a"/>
     <rect x="39" y="104" width="24" height="9" rx="3.5" fill="${color}"/></svg>`;
 }
 function hash(s){ let h=0; for(const c of s) h=(h*31+c.charCodeAt(0))>>>0; return h; }
-function seatEl(seat, isPresident) {
+function seatEl(seat, kind) {
   const el = document.createElement("div");
-  el.className = "seat idle" + (isPresident ? " president-seat" : "");
+  el.className = "seat idle" + (kind === "president" ? " president-seat" : "") + (kind === "cos" ? " cos-seat" : "");
   el.dataset.id = seat.id;
-  el.innerHTML = (isPresident ? `<span class="crown">👑</span>` : ``) +
+  el.title = seat.seat;
+  el.innerHTML = (kind === "president" ? `<span class="crown">👑</span>` : ``) +
     `<div class="bubble" hidden></div>
-     <div class="potato">${potatoSVG(seat.color)}<span class="pip"></span></div>
-     <div class="seat-label"><div class="dept">${seat.dept}</div><div class="title">${seat.seat}</div></div>`;
-  el.querySelector(".tater").style.animationDelay = (hash(seat.id) % 1000) / 1000 * 3.6 + "s";
+     <div class="potato">${potatoSVG(seat.color, hash(seat.id))}<span class="pip"></span></div>
+     <div class="seat-label"><div class="dept">${ABBR[seat.id] || seat.dept}</div><div class="title">${seat.seat}</div></div>`;
   return el;
 }
 const seatState = {};
 function renderCabinet() {
-  $("president-row").appendChild(seatEl(PRESIDENT, true));
-  for (const s of SECRETARIES) $("grid").appendChild(seatEl(s, false));
+  // President behind a desk, above it all
+  const stage = $("president-stage");
+  stage.appendChild(seatEl(PRESIDENT, "president"));
+  const desk = document.createElement("div");
+  desk.className = "desk";
+  desk.innerHTML = `<span class="plate">The President</span>`;
+  stage.appendChild(desk);
+
+  // Arena: Chief of Staff in the center, secretaries on a ring facing inward
+  const arena = $("arena");
+  arena.appendChild(seatEl(COS, "cos"));
+  const N = SECRETARIES.length, R = 43, amp = 4;
+  SECRETARIES.forEach((s, i) => {
+    const ang = (-90 + i * (360 / N)) * Math.PI / 180;
+    const el = seatEl(s, "secretary");
+    el.style.left = (50 + R * Math.cos(ang)).toFixed(2) + "%";
+    el.style.top  = (50 + R * Math.sin(ang)).toFixed(2) + "%";
+    el.style.setProperty("--gx", (-amp * Math.cos(ang)).toFixed(2) + "px");  // look toward the center
+    el.style.setProperty("--gy", (-amp * Math.sin(ang)).toFixed(2) + "px");
+    arena.appendChild(el);
+  });
+
   for (const s of ALL_SEATS) seatState[s.id] = "idle";
   $("legend").innerHTML = STATES.map(st => `<span><i style="background:${STATE_COLORS[st]}"></i>${st}</span>`).join("");
 }
 function setState(id, state) {
   const el = document.querySelector(`.seat[data-id="${id}"]`); if (!el) return;
-  el.classList.remove(...STATES); el.classList.add(state); seatState[id] = state;
+  el.classList.remove(...STATES); el.classList.add(state);
+  el.classList.toggle("looking", state !== "idle");   // active secretaries face the COS
+  seatState[id] = state;
 }
 function setBubble(id, text) {
   const b = document.querySelector(`.seat[data-id="${id}"] .bubble`); if (!b) return;
@@ -506,13 +566,14 @@ async function runCase(caseText) {
     if (!getKey(prov)) { clearTranscript(); tx("error","Missing key",`Set the ${CONFIG.providers[prov].label} key in Settings (needed for the ${role}).`); return; }
   }
   running = true; $("run").disabled = true; resetStates(); clearTranscript();
+  setState("cos","working"); setBubble("cos","On it");
 
   // 1. decompose
   txStatus("Chief of Staff analyzing the problem…");
   let plan;
   try { plan = await decompose(caseText); }
-  catch (e) { txStatus(""); tx("error","Chief of Staff failed", e.message); running=false; $("run").disabled=false; return; }
-  if (!plan.assignments.length) { txStatus(""); tx("chief","Chief of Staff","No department clearly owns this problem."); running=false; $("run").disabled=false; return; }
+  catch (e) { txStatus(""); tx("error","Chief of Staff failed", e.message); setState("cos","error"); running=false; $("run").disabled=false; return; }
+  if (!plan.assignments.length) { txStatus(""); tx("chief","Chief of Staff","No department clearly owns this problem."); setState("cos","idle"); setBubble("cos",""); running=false; $("run").disabled=false; return; }
   tx("chief", "Chief of Staff — routing",
      `${plan.rationale}\n\nDepartments: ${plan.assignments.map(a=>a.ref.dept).join(", ")}${plan.coordination ? "  (coordinated)" : ""}`);
 
@@ -531,7 +592,7 @@ async function runCase(caseText) {
     } catch (e) { setState(a.ref.id,"error"); setBubble(a.ref.id,"Error"); tx("error", a.ref.dept, e.message); return null; }
   }));
   results = results.filter(Boolean);
-  if (!results.length) { txStatus(""); running=false; $("run").disabled=false; return; }
+  if (!results.length) { txStatus(""); setState("cos","idle"); setBubble("cos",""); running=false; $("run").disabled=false; return; }
 
   // 3. coordinate (optional, one round)
   if (plan.coordination && results.length > 1) {
@@ -550,9 +611,10 @@ async function runCase(caseText) {
 
   // 4. synthesize
   txStatus("Chief of Staff synthesizing the solution…");
+  setState("cos","working"); setBubble("cos","Synthesizing…");
   try { const final = await synthesize(caseText, results); tx("synth","Chief of Staff — Final Solution", final); }
   catch (e) { tx("error","Synthesis failed", e.message); }
-  txStatus("");
+  txStatus(""); setState("cos","done"); setBubble("cos","Solution ready");
   running = false; $("run").disabled = false;
 }
 
