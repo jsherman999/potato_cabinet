@@ -54,7 +54,8 @@
   @keyframes workpulse { 0%,100% { box-shadow:0 0 0 3px var(--st-working); } 50% { box-shadow:0 0 0 8px rgba(224,179,92,.22); } }
 
   .mouth { transform-box:fill-box; transform-origin:center; transform:scaleY(.4); }
-  .seat.speaking .mouth { animation:talk .26s ease-in-out infinite; }
+  .seat.speaking .mouth, .seat.talking .mouth { animation:talk .26s ease-in-out infinite; }
+  .seat.talking .potato { outline:2px solid var(--st-speaking); outline-offset:2px; }
   @keyframes talk { 0%,100% { transform:scaleY(.25); } 50% { transform:scaleY(1); } }
 
   .seat.president-seat .tater { width:110px; height:128px; }
@@ -112,7 +113,7 @@
   <span style="font-size:26px">🥔</span>
   <div>
     <h1>Potato Cabinet</h1>
-    <div class="sub">Phase 2 — orchestration</div>
+    <div class="sub">Phase 3 — announcements &amp; voice</div>
   </div>
 </header>
 
@@ -126,6 +127,9 @@
         <button class="ghost" data-ex="drought">Drought example</button>
         <button class="ghost" data-ex="military">Military buildup example</button>
       </span>
+      <label style="display:inline-flex;align-items:center;gap:6px;margin:0;color:var(--ink)">
+        <input id="voice" type="checkbox"> 🔊 Voice
+      </label>
     </div>
     <p class="note" style="margin-top:10px">The Chief of Staff (<span id="orchModel"></span>) routes the problem to
       the relevant departments (<span id="secModel"></span>), coordinates them if needed, and synthesizes one solution.
@@ -184,6 +188,14 @@ const CONFIG = {
     orchestrator: { provider:"anthropic",  model:"claude-sonnet-4-6" },
     secretary:    { provider:"openrouter", model:"openai/gpt-4o-mini" },
     webResearch:  { provider:"openrouter", model:"google/gemini-2.5-flash:online" },
+  },
+  tts: {
+    enabled: true,
+    engine: "openai",                       // "openai" (neural, natural) | "browser" (speechSynthesis fallback)
+    openai: { model: "gpt-4o-mini-tts",
+              instructions: "Speak in a warm, natural, human, conversational tone — relaxed, clear, and lightly expressive, not robotic." },
+    voices: ["alloy","ash","ballad","coral","echo","fable","onyx","nova","sage","shimmer","verse","marin"],
+    presidentVoice: "cedar",
   },
   maxTokens: 1024, anthropicVersion: "2023-06-01", appTitle: "Potato Cabinet",
 };
@@ -339,6 +351,88 @@ async function synthesize(caseText, results) {
   return text;
 }
 
+/* ============================== VOICE (TTS) ==============================
+   Default engine: OpenAI neural TTS (gpt-4o-mini-tts) for natural, human voices,
+   played via Web Audio. Falls back to browser speechSynthesis when no OpenAI key.
+   Announcements are queued so potatoes don't talk over each other; the speaking
+   potato gets the .talking class (mouth animates) for the duration of its clip. */
+const VOICE_PREF = "pc_voice";
+const voiceOn = () => localStorage.getItem(VOICE_PREF) !== "0";
+const setVoicePref = (on) => localStorage.setItem(VOICE_PREF, on ? "1" : "0");
+function seatVoice(id) {
+  if (id === "president") return CONFIG.tts.presidentVoice;
+  const i = SECRETARIES.findIndex(s => s.id === id);
+  const vs = CONFIG.tts.voices;
+  return vs[(i < 0 ? 0 : i) % vs.length];
+}
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const estDuration = (t) => Math.max(1200, Math.round((t || "").length * 55));
+
+let audioCtx = null;
+function unlockAudio() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+  } catch {}
+}
+
+const speech = { queue: [], busy: false };
+function announce(seatId, text, voice) {
+  if (!CONFIG.tts.enabled || !voiceOn()) return;
+  speech.queue.push({ seatId, text, voice });
+  pumpSpeech();
+}
+async function pumpSpeech() {
+  if (speech.busy) return;
+  speech.busy = true;
+  while (speech.queue.length) {
+    const it = speech.queue.shift();
+    const seat = document.querySelector(`.seat[data-id="${it.seatId}"]`);
+    if (seat) seat.classList.add("talking");
+    try {
+      if (CONFIG.tts.engine === "openai" && getKey("openai")) await speakOpenAI(it.text, it.voice);
+      else await speakBrowser(it.text, it.seatId);
+    } catch (e) { await sleep(estDuration(it.text)); }   // keep the mouth moving even if audio fails
+    if (seat) seat.classList.remove("talking");
+  }
+  speech.busy = false;
+}
+async function speakOpenAI(text, voice) {
+  unlockAudio();
+  const key = getKey("openai"); if (!key) throw new Error("no openai key");
+  const res = await fetch("https://api.openai.com/v1/audio/speech", { method:"POST",
+    headers: { "Authorization":`Bearer ${key}`, "Content-Type":"application/json" },
+    body: JSON.stringify({ model: CONFIG.tts.openai.model, voice, input: text,
+                           instructions: CONFIG.tts.openai.instructions, response_format: "mp3" }) });
+  if (!res.ok) throw new Error("tts HTTP " + res.status);
+  const buf = await res.arrayBuffer();
+  if (!audioCtx) throw new Error("no audio context");
+  const decoded = await audioCtx.decodeAudioData(buf.slice(0));
+  await new Promise(resolve => {
+    const src = audioCtx.createBufferSource();
+    src.buffer = decoded; src.connect(audioCtx.destination);
+    src.onended = resolve; src.start();
+  });
+}
+let _voices = [];
+function speakBrowser(text, seatId) {
+  return new Promise(resolve => {
+    if (!window.speechSynthesis) { sleep(estDuration(text)).then(resolve); return; }
+    if (!_voices.length) _voices = speechSynthesis.getVoices();
+    const pref = _voices.find(v => /Natural|Premium|Enhanced|Siri|Google|Samantha/i.test(v.name) && /^en/i.test(v.lang))
+              || _voices.find(v => /^en/i.test(v.lang));
+    const u = new SpeechSynthesisUtterance(text);
+    if (pref) u.voice = pref;
+    u.rate = 1.0; u.pitch = 0.9 + (hash(seatId) % 5) * 0.06;   // vary pitch per seat for distinction
+    u.onend = resolve; u.onerror = resolve;
+    speechSynthesis.speak(u);
+  });
+}
+if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { _voices = speechSynthesis.getVoices(); };
+
+const announceTasked = (s) => `${s.dept} here. The Chief of Staff has tasked us — we're on it.`;
+const announceDone   = (s) => `${s.dept} reporting: our plan is ready.`;
+
 /* ============================== POTATO + CABINET UI ============================== */
 const $ = (id) => document.getElementById(id);
 function potatoSVG(color) {
@@ -427,10 +521,12 @@ async function runCase(caseText) {
   txStatus("Departments working…");
   let results = await Promise.all(plan.assignments.map(async a => {
     setState(a.ref.id,"working"); setBubble(a.ref.id,"Working…");
+    announce(a.ref.id, announceTasked(a.ref), seatVoice(a.ref.id));
     try {
       const planText = await dispatch(a.ref, caseText, a.brief);
       setState(a.ref.id,"done"); setBubble(a.ref.id,"Done ✓");
       tx("dept", `${a.ref.dept} — ${a.ref.seat}`, planText, a.ref.color);
+      announce(a.ref.id, announceDone(a.ref), seatVoice(a.ref.id));
       return { id:a.ref.id, dept:a.ref.dept, seat:a.ref.seat, plan:planText, ref:a.ref };
     } catch (e) { setState(a.ref.id,"error"); setBubble(a.ref.id,"Error"); tx("error", a.ref.dept, e.message); return null; }
   }));
@@ -460,8 +556,10 @@ async function runCase(caseText) {
   running = false; $("run").disabled = false;
 }
 
-$("run").onclick = () => runCase($("caseInput").value);
+$("run").onclick = () => { unlockAudio(); runCase($("caseInput").value); };
 document.querySelectorAll("[data-ex]").forEach(b => b.onclick = () => { $("caseInput").value = EXAMPLES[b.dataset.ex]; });
+$("voice").checked = voiceOn();
+$("voice").onchange = (e) => { setVoicePref(e.target.checked); if (e.target.checked) unlockAudio(); };
 
 /* ============================== SETTINGS ============================== */
 const PROVIDERS = Object.keys(CONFIG.providers);
