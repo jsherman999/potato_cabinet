@@ -27,7 +27,10 @@ git push
 MARKER="<!--BUILD-->$SHA<!--/BUILD-->"
 echo "Pushed build $SHA — waiting for GitHub Pages to serve it…"
 for _ in $(seq 1 60); do
-  if curl -fsS "${URL}?cb=$(date +%s)" | grep -qF "$MARKER"; then
+  # capture then glob-match — piping into `grep -q` trips `set -o pipefail`
+  # (grep closes the pipe on match, curl reports a write error, success looks like failure)
+  body=$(curl -fsS "${URL}?cb=$(date +%s)" || true)
+  if [[ "$body" == *"$MARKER"* ]]; then
     echo "✓ live: $SHA  →  $URL"
     exit 0
   fi
