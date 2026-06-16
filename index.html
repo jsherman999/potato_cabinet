@@ -21,6 +21,7 @@
   header .build:hover { opacity:1; }
   main { max-width:1080px; margin:0 auto; padding:22px; }
   .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px; margin-bottom:18px; }
+  .card.cabinet { background:var(--bg); }   /* the panel behind the potatoes is black, matching the page */
   .card h2 { font-size:14px; margin:0 0 12px; letter-spacing:.02em; text-transform:uppercase; color:var(--accent); }
   .cabinet-note { color:var(--muted); font-size:13px; margin:0 0 14px; }
 
@@ -77,9 +78,14 @@
             box-shadow:0 4px 14px rgba(0,0,0,.4); }
   .bubble::after { content:""; position:absolute; bottom:-5px; left:50%; transform:translateX(-50%);
             border:5px solid transparent; border-top-color:#15130f; }
-  /* President's "Plan issued" reads as a green done-box, matching the COS "Solution ready" badge */
-  .president-seat.done .bubble { background:var(--ok); color:#10220f; border-color:transparent; font-weight:650; }
-  .president-seat.done .bubble::after { border-top-color:var(--ok); }
+  /* "Plan issued" (President) and "Done ✓" (secretary) show as green badges to the RIGHT of the
+     potato — like the COS "Solution ready" badge — instead of black boxes above it */
+  .president-seat.done .bubble, .field .seat.done .bubble {
+    background:var(--ok); color:#10220f; border-color:transparent; font-weight:650;
+    top:50%; white-space:nowrap; max-width:none; }
+  .president-seat.done .bubble { left:100%; transform:translate(12px,-50%); }
+  .field .seat.done .bubble { left:calc(50% + 36px); transform:translateY(-50%); }
+  .president-seat.done .bubble::after, .field .seat.done .bubble::after { display:none; }
 
   .seat.assigned .potato { box-shadow:0 0 0 3px var(--st-assigned); }
   .seat.assigned .pip    { background:var(--st-assigned); }
@@ -200,7 +206,7 @@
     <textarea id="caseInput" placeholder="Describe a real-world problem for the Cabinet to solve…"></textarea>
     <div class="actions">
       <button id="run">▶ Run</button>
-      <button id="prez">🦅 President: auto-pick a problem</button>
+      <button id="prez">🦅 President Watches Cable</button>
       <label class="attach-btn">📎 Attach image(s)<input id="files" type="file" accept="image/*" multiple hidden></label>
       <select id="exSelect" class="ex-select">
         <option value="">Load an example…</option>
@@ -217,7 +223,7 @@
     <span id="orchModel" hidden></span><span id="secModel" hidden></span>
   </div>
 
-  <div class="card">
+  <div class="card cabinet">
     <h2>The Cabinet</h2>
     <div class="legend" id="legend"></div>
     <div style="height:14px"></div>

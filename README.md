@@ -46,7 +46,7 @@ You only need the one file:
    [live demo](https://jsherman999.github.io/potato_cabinet/).
 2. Open it in a browser (double-click / `file://` — no server needed).
 3. Open **Settings**, paste **at least one** API key (see [Getting API keys](#getting-api-keys)), and **Test all providers**.
-4. Type a problem (or pick an example / hit **🦅 President: auto-pick a problem**) and **Run**.
+4. Type a problem (or pick an example / hit **🦅 President Watches Cable**) and **Run**.
 
 ### Getting API keys
 
