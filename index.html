@@ -343,26 +343,26 @@ const CONFIG = {
 };
 
 /* ============================== CABINET ============================== */
-const PRESIDENT = { id:"president", seat:"President", dept:"President", color:"#d4af37",
+const PRESIDENT = { id:"president", seat:"President", dept:"President", color:"#d4af37", name:"President Potato",
   scope:"Head of the executive branch; reviews the news and sets the agenda." };
 const SECRETARIES = [
-  { id:"state",       dept:"State",            seat:"Secretary of State",                      color:"#5b8dd6", scope:"Foreign policy, diplomacy, treaties, embassies." },
-  { id:"treasury",    dept:"Treasury",         seat:"Secretary of the Treasury",               color:"#3f9d72", scope:"Federal finance, taxation, debt, sanctions, currency." },
-  { id:"defense",     dept:"Defense",          seat:"Secretary of Defense",                    color:"#6e7b52", scope:"Military forces and national defense operations." },
-  { id:"justice",     dept:"Justice",          seat:"Attorney General",                        color:"#9b6cc0", scope:"Federal law enforcement, prosecution, civil rights." },
-  { id:"interior",    dept:"Interior",         seat:"Secretary of the Interior",               color:"#b5713a", scope:"Public lands, natural resources, parks, tribal affairs." },
-  { id:"agriculture", dept:"Agriculture",      seat:"Secretary of Agriculture",                color:"#6fae4a", scope:"Farming, food supply, rural development, nutrition programs." },
-  { id:"commerce",    dept:"Commerce",         seat:"Secretary of Commerce",                   color:"#46a6b8", scope:"Trade, business, economic data, weather (NOAA), patents." },
-  { id:"labor",       dept:"Labor",            seat:"Secretary of Labor",                      color:"#d2734a", scope:"Workforce, wages, workplace safety, unemployment." },
-  { id:"hhs",         dept:"HHS",              seat:"Secretary of Health & Human Services",    color:"#4f9cd8", scope:"Public health, Medicare/Medicaid, FDA, CDC." },
-  { id:"hud",         dept:"HUD",              seat:"Secretary of Housing & Urban Development", color:"#d8a23f", scope:"Housing, urban development, homelessness." },
-  { id:"transport",   dept:"Transportation",   seat:"Secretary of Transportation",             color:"#c7a93a", scope:"Highways, aviation, rail, transit safety." },
-  { id:"energy",      dept:"Energy",           seat:"Secretary of Energy",                     color:"#e0c34a", scope:"Energy policy, the grid, nuclear security, R&D." },
-  { id:"education",   dept:"Education",        seat:"Secretary of Education",                  color:"#5566c4", scope:"Schools, student aid, education policy." },
-  { id:"va",          dept:"Veterans Affairs", seat:"Secretary of Veterans Affairs",          color:"#6f93b0", scope:"Veteran healthcare, benefits, and services." },
-  { id:"dhs",         dept:"Homeland Security", seat:"Secretary of Homeland Security",         color:"#3f6fb0", scope:"Borders, immigration, disaster response (FEMA), cybersecurity." },
+  { id:"state",       dept:"State",            seat:"Secretary of State",                      color:"#5b8dd6", name:"Idaho Jones", scope:"Foreign policy, diplomacy, treaties, embassies." },
+  { id:"treasury",    dept:"Treasury",         seat:"Secretary of the Treasury",               color:"#3f9d72", name:"Yukon Goldie", scope:"Federal finance, taxation, debt, sanctions, currency." },
+  { id:"defense",     dept:"Defense",          seat:"Secretary of Defense",                    color:"#6e7b52", name:"Tater McVodka", scope:"Military forces and national defense operations." },
+  { id:"justice",     dept:"Justice",          seat:"Attorney General",                        color:"#9b6cc0", name:"Sir Jonathan Potato, III", scope:"Federal law enforcement, prosecution, civil rights." },
+  { id:"interior",    dept:"Interior",         seat:"Secretary of the Interior",               color:"#b5713a", name:"North Dakota Ned", scope:"Public lands, natural resources, parks, tribal affairs." },
+  { id:"agriculture", dept:"Agriculture",      seat:"Secretary of Agriculture",                color:"#6fae4a", name:"Spuds O'Reilly", scope:"Farming, food supply, rural development, nutrition programs." },
+  { id:"commerce",    dept:"Commerce",         seat:"Secretary of Commerce",                   color:"#46a6b8", name:"Spudster McCane", scope:"Trade, business, economic data, weather (NOAA), patents." },
+  { id:"labor",       dept:"Labor",            seat:"Secretary of Labor",                      color:"#d2734a", name:"Cletus Tater", scope:"Workforce, wages, workplace safety, unemployment." },
+  { id:"hhs",         dept:"HHS",              seat:"Secretary of Health & Human Services",    color:"#4f9cd8", name:"Red McSpud", scope:"Public health, Medicare/Medicaid, FDA, CDC." },
+  { id:"hud",         dept:"HUD",              seat:"Secretary of Housing & Urban Development", color:"#d8a23f", name:"William, Potato", scope:"Housing, urban development, homelessness." },
+  { id:"transport",   dept:"Transportation",   seat:"Secretary of Transportation",             color:"#c7a93a", name:"Johnny Potato, Jr.", scope:"Highways, aviation, rail, transit safety." },
+  { id:"energy",      dept:"Energy",           seat:"Secretary of Energy",                     color:"#e0c34a", name:"Reginald Russet", scope:"Energy policy, the grid, nuclear security, R&D." },
+  { id:"education",   dept:"Education",        seat:"Secretary of Education",                  color:"#5566c4", name:"Spudly", scope:"Schools, student aid, education policy." },
+  { id:"va",          dept:"Veterans Affairs", seat:"Secretary of Veterans Affairs",          color:"#6f93b0", name:"The Potato", scope:"Veteran healthcare, benefits, and services." },
+  { id:"dhs",         dept:"Homeland Security", seat:"Secretary of Homeland Security",         color:"#3f6fb0", name:"Crazy-eye McSpud", scope:"Borders, immigration, disaster response (FEMA), cybersecurity." },
 ];
-const COS = { id:"cos", seat:"Chief of Staff", dept:"Chief of Staff", color:"#9aa7b3",
+const COS = { id:"cos", seat:"Chief of Staff", dept:"Chief of Staff", color:"#9aa7b3", name:"Susan Starch",
   scope:"Orchestrates the cabinet on the President's behalf." };
 const ALL_SEATS = [PRESIDENT, COS, ...SECRETARIES];
 // short labels for the ring (full title stays on hover)
@@ -799,8 +799,8 @@ function updateMuteBtn() { const b = $("qaMute"); if (b) b.textContent = voiceOn
 function openQA(seat) {
   qaSeat = seat; unlockAudio();
   $("qaAvatar").innerHTML = potatoSVG(seat.color, hash(seat.id));
-  $("qaName").textContent = seat.dept === seat.seat ? seat.seat : seat.dept;
-  $("qaSub").textContent = seat.dept === seat.seat ? "" : seat.seat;
+  $("qaName").textContent = seat.name;
+  $("qaSub").textContent = seat.dept === seat.seat ? seat.seat : `${seat.dept} · ${seat.seat}`;
   $("qaHint").textContent = qaContextHint(seat);
   $("qaLog").innerHTML = "";
   for (const m of (convo[seat.id] || [])) qaMsg(m.role === "user" ? "u" : "a", m.content);
@@ -914,7 +914,7 @@ async function runCase(caseText, opts = {}) {
     try {
       const planText = await dispatch(a.ref, caseText, a.brief);
       setState(a.ref.id,"done"); setBubble(a.ref.id,"Done ✓");
-      tx("dept", `${a.ref.dept} — ${a.ref.seat}`, planText, a.ref.color);
+      tx("dept", `${a.ref.dept} — ${a.ref.seat} (${a.ref.name})`, planText, a.ref.color);
       seatPlans[a.ref.id] = planText;
       announce(a.ref.id, announceDone(a.ref, countSteps(planText)));
       return { id:a.ref.id, dept:a.ref.dept, seat:a.ref.seat, plan:planText, ref:a.ref };
@@ -933,7 +933,7 @@ async function runCase(caseText, opts = {}) {
       try {
         const upd = await coordinate(r.ref, caseText, r.plan, others);
         setState(r.id,"done"); setBubble(r.id,"");
-        tx("dept", `${r.dept} — coordinated plan`, upd, r.ref.color);
+        tx("dept", `${r.dept} — coordinated plan (${r.ref.name})`, upd, r.ref.color);
         seatPlans[r.id] = upd;
         return { ...r, plan: upd };
       } catch (e) { setState(r.id,"done"); return r; }
