@@ -145,6 +145,10 @@
   details.card > summary::before { content:"▸ "; }
   details.card[open] > summary::before { content:"▾ "; }
   label.fld { display:block; font-size:13px; color:var(--muted); margin:14px 0 5px; }
+  a.keyhelp { color:var(--accent); text-decoration:none; font-weight:600; }
+  a.keyhelp:hover { text-decoration:underline; }
+  .keynote { font-size:12.5px; color:var(--ink); background:#15130f; border:1px solid var(--line);
+             border-radius:8px; padding:10px 12px; margin:6px 0 4px; }
   input[type=password], input[type=text] { width:100%; padding:9px 11px; background:#15130f; color:var(--ink);
            border:1px solid var(--line); border-radius:8px; font:inherit; font-size:13px; }
   .status { margin-top:14px; display:grid; gap:8px; }
@@ -230,11 +234,21 @@
 
   <details class="card">
     <summary>Settings — API keys &amp; connection test</summary>
-    <label class="fld" for="k-openai">OpenAI key (<span id="m-openai"></span>)</label>
+    <p class="keynote">You only need <strong>one</strong> key. The Cabinet routes every role to whichever
+      provider(s) you set, so a single key drives the whole app. <strong>OpenRouter</strong> is the easiest start —
+      one key reaches OpenAI, Google &amp; Anthropic models and powers live web research; add <strong>OpenAI</strong>
+      for neural voices, or <strong>Anthropic</strong> to run Claude directly.</p>
+    <label class="fld" for="k-openai">OpenAI key (<span id="m-openai"></span>) —
+      <a class="keyhelp" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener"
+         title="Sign in at platform.openai.com, add billing, then create a secret key (starts with sk-). Enables neural voices + OpenAI models.">get a key ↗</a></label>
     <input id="k-openai" type="password" placeholder="sk-proj-…" autocomplete="off">
-    <label class="fld" for="k-openrouter">OpenRouter key (<span id="m-openrouter"></span>)</label>
+    <label class="fld" for="k-openrouter">OpenRouter key (<span id="m-openrouter"></span>) —
+      <a class="keyhelp" href="https://openrouter.ai/keys" target="_blank" rel="noopener"
+         title="Sign up at openrouter.ai, add a few dollars of credit, then create a key (starts with sk-or-v1-). One key reaches OpenAI, Google, Anthropic, Meta and more.">get a key ↗</a></label>
     <input id="k-openrouter" type="password" placeholder="sk-or-v1-…" autocomplete="off">
-    <label class="fld" for="k-anthropic">Anthropic key (<span id="m-anthropic"></span>)</label>
+    <label class="fld" for="k-anthropic">Anthropic key (<span id="m-anthropic"></span>) —
+      <a class="keyhelp" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener"
+         title="Sign in at console.anthropic.com, add billing, then create a key (starts with sk-ant-). Runs Claude (Opus / Sonnet / Haiku) directly.">get a key ↗</a></label>
     <input id="k-anthropic" type="password" placeholder="sk-ant-…" autocomplete="off">
     <div class="actions">
       <button id="save">Save keys</button>
@@ -279,12 +293,35 @@ const CONFIG = {
     openrouter: { label:"OpenRouter", endpoint:"https://openrouter.ai/api/v1/chat/completions", format:"openai",    testModel:"google/gemini-2.5-flash" },
     anthropic:  { label:"Anthropic",  endpoint:"https://api.anthropic.com/v1/messages",         format:"anthropic", testModel:"claude-haiku-4-5" },
   },
+  // Each role lists provider candidates in preference order. The app uses the first
+  // candidate whose key is set — so a single key routes every role to that one provider,
+  // while all three keys reproduces the original per-role defaults (the first entry each).
   roles: {
-    president:    { provider:"anthropic",  model:"claude-opus-4-8" },
-    orchestrator: { provider:"anthropic",  model:"claude-sonnet-4-6" },
-    secretary:    { provider:"openrouter", model:"openai/gpt-4o-mini" },
-    webResearch:  { provider:"openrouter", model:"google/gemini-2.5-flash:online" },
-    vision:       { provider:"openrouter", model:"google/gemini-2.5-flash" },
+    president: [
+      { provider:"anthropic",  model:"claude-opus-4-8" },
+      { provider:"openrouter", model:"openai/gpt-4.1-mini" },
+      { provider:"openai",     model:"gpt-4.1-mini" },
+    ],
+    orchestrator: [
+      { provider:"anthropic",  model:"claude-sonnet-4-6" },
+      { provider:"openrouter", model:"openai/gpt-4.1-mini" },
+      { provider:"openai",     model:"gpt-4.1-mini" },
+    ],
+    secretary: [
+      { provider:"openrouter", model:"openai/gpt-4o-mini" },
+      { provider:"openai",     model:"gpt-4o-mini" },
+      { provider:"anthropic",  model:"claude-haiku-4-5" },
+    ],
+    webResearch: [
+      { provider:"openrouter", model:"google/gemini-2.5-flash:online" },
+      { provider:"openai",     model:"gpt-4.1-mini" },
+      { provider:"anthropic",  model:"claude-sonnet-4-6" },
+    ],
+    vision: [
+      { provider:"openrouter", model:"google/gemini-2.5-flash" },
+      { provider:"openai",     model:"gpt-4o-mini" },
+      { provider:"anthropic",  model:"claude-haiku-4-5" },
+    ],
   },
   tts: {
     enabled: true,
@@ -341,6 +378,13 @@ const getKeys = () => { try { return JSON.parse(localStorage.getItem(KEY_STORE))
 const getKey  = (p) => getKeys()[p] || "";
 function setKey(p,v){ const k=getKeys(); if(v) k[p]=v; else delete k[p]; localStorage.setItem(KEY_STORE, JSON.stringify(k)); }
 const forgetKeys = () => localStorage.removeItem(KEY_STORE);
+const anyKeySet = () => Object.keys(CONFIG.providers).some(getKey);
+// pick the first provider candidate for a role whose key is set (falls back to the
+// first candidate so callers still get a sensible "no key" error when none are set)
+function resolveRole(name) {
+  const cands = CONFIG.roles[name] || [];
+  return cands.find(c => getKey(c.provider)) || cands[0];
+}
 
 /* ============================ PROVIDER ADAPTER ============================ */
 function toAnthropicImage(d){ const m = /^data:(.*?);base64,(.*)$/.exec(d) || []; return { type:"image", source:{ type:"base64", media_type:m[1]||"image/png", data:m[2]||"" } }; }
@@ -444,7 +488,7 @@ async function decompose(caseText) {
   let j;
   for (let attempt = 0; attempt < 2; attempt++) {
     const sys = DECOMPOSE_SYS() + (attempt ? "\n\nIMPORTANT: be brief — each brief <=25 words — and output ONLY valid compact JSON." : "");
-    const { text } = await callLLM({ ...CONFIG.roles.orchestrator, system: sys,
+    const { text } = await callLLM({ ...resolveRole("orchestrator"), system: sys,
       messages: [{ role:"user", content: caseText }], maxTokens: attempt ? 3000 : 2000, json: true });
     try { j = parseJSON(text); break; }
     catch (e) { if (attempt) throw new Error("couldn't parse the routing JSON (try a shorter problem) — " + e.message); }
@@ -455,21 +499,21 @@ async function decompose(caseText) {
   return { rationale: j.rationale || "", coordination: !!j.coordination, assignments };
 }
 async function dispatch(ref, caseText, brief) {
-  const { text } = await callLLM({ ...CONFIG.roles.secretary, system: secretarySys(ref),
+  const { text } = await callLLM({ ...resolveRole("secretary"), system: secretarySys(ref),
     messages: [{ role:"user", content:`PROBLEM:\n${caseText}\n\nYOUR TASK BRIEF:\n${brief}` }], maxTokens: 600 });
   return text;
 }
 async function coordinate(ref, caseText, myPlan, others) {
   const sys = secretarySys(ref) + "\nYou are now coordinating with the other departments. Align your plan with theirs; resolve overlaps and define hand-offs.";
   const otherTxt = others.map(o => `${o.dept}: ${o.plan}`).join("\n\n");
-  const { text } = await callLLM({ ...CONFIG.roles.secretary, system: sys,
+  const { text } = await callLLM({ ...resolveRole("secretary"), system: sys,
     messages: [{ role:"user", content:`PROBLEM:\n${caseText}\n\nYOUR CURRENT PLAN:\n${myPlan}\n\nOTHER DEPARTMENTS' PLANS:\n${otherTxt}\n\nProvide your updated, coordinated plan (under ~150 words).` }],
     maxTokens: 500 });
   return text;
 }
 async function synthesize(caseText, results) {
   const body = results.map(r => `${r.dept} (${r.seat}):\n${r.plan}`).join("\n\n");
-  const { text } = await callLLM({ ...CONFIG.roles.orchestrator, system: SYNTH_SYS,
+  const { text } = await callLLM({ ...resolveRole("orchestrator"), system: SYNTH_SYS,
     messages: [{ role:"user", content:`PROBLEM:\n${caseText}\n\nDEPARTMENT RESPONSES:\n${body}` }], maxTokens: 800 });
   return text;
 }
@@ -730,7 +774,7 @@ You are taking questions from the public or White House staff. Answer in charact
 }
 async function askSecretary(seat, question, signal) {
   const hist = convo[seat.id] || (convo[seat.id] = []);
-  const { text } = await callLLM({ ...CONFIG.roles.secretary, system: qaSys(seat),
+  const { text } = await callLLM({ ...resolveRole("secretary"), system: qaSys(seat),
     messages: [...hist, { role:"user", content: question }], maxTokens: 400, signal });
   hist.push({ role:"user", content: question }, { role:"assistant", content: text });
   return text;
@@ -767,8 +811,8 @@ function closeQA() {            // ✕ : stop talking, abort any pending answer,
 async function doAsk() {
   const q = $("qaText").value.trim();
   if (!q || !qaSeat) return;
-  const seat = qaSeat, prov = CONFIG.roles.secretary.provider;
-  if (!getKey(prov)) { qaMsg("a", `Set the ${CONFIG.providers[prov].label} key in Settings first.`); return; }
+  const seat = qaSeat;
+  if (!anyKeySet()) { qaMsg("a", "Set an API key (OpenAI, OpenRouter, or Anthropic) in Settings first."); return; }
   $("qaText").value = ""; $("qaAsk").disabled = true;
   qaMsg("u", q);
   const bubble = qaMsg("a", "…");
@@ -793,14 +837,14 @@ function renderAttachments(){
 }
 const URL_RE = /\bhttps?:\/\/[^\s)<>"']+/gi;
 async function describeImage(img, caseText){
-  const { text } = await callLLM({ ...CONFIG.roles.vision,
+  const { text } = await callLLM({ ...resolveRole("vision"),
     system: "You identify and describe images for a policy analyst. Be concise and factual; note any text, charts, places, and decision-relevant details.",
     messages: [{ role:"user", content: `Describe this image (file "${img.name}") and note anything relevant to this problem:\n${caseText.slice(0, 600)}` }],
     images: [img.dataURL], maxTokens: 350 });
   return text;
 }
 async function fetchLinks(urls){
-  const { text } = await callLLM({ ...CONFIG.roles.webResearch,
+  const { text } = await callLLM({ ...resolveRole("webResearch"),
     messages: [{ role:"user", content: `Read the content at these URLs and summarize the parts relevant to a federal policy problem — key facts, numbers, dates, and who is affected. URLs:\n${urls.join("\n")}` }],
     maxTokens: 700 });
   return text;
@@ -832,10 +876,7 @@ async function runCase(caseText, opts = {}) {
   if (running) return;
   caseText = (caseText || "").trim();
   if (!caseText) { tx("error","No problem given","Type or pick an example problem first."); return; }
-  for (const role of ["orchestrator","secretary"]) {
-    const prov = CONFIG.roles[role].provider;
-    if (!getKey(prov)) { clearTranscript(); tx("error","Missing key",`Set the ${CONFIG.providers[prov].label} key in Settings (needed for the ${role}).`); return; }
-  }
+  if (!anyKeySet()) { clearTranscript(); tx("error","Missing key","Set at least one API key (OpenAI, OpenRouter, or Anthropic) in Settings."); return; }
   running = true; $("run").disabled = true;
   if (opts.keep) { for (const s of SECRETARIES) { setState(s.id,"idle"); setBubble(s.id,""); } setState("cos","idle"); setBubble("cos",""); setCosStatus(""); }
   else { resetStates(); clearTranscript(); }
@@ -906,7 +947,7 @@ async function runCase(caseText, opts = {}) {
    Opus 4.8 reviews a live news snapshot (gemini-2.5-flash:online), picks a problem
    a department can address, writes an Executive Plan, and hands it to the Chief of Staff. */
 async function newsSnapshot() {
-  const { text } = await callLLM({ ...CONFIG.roles.webResearch,
+  const { text } = await callLLM({ ...resolveRole("webResearch"),
     messages: [{ role:"user", content:
       "List 4-5 significant, currently-unfolding U.S. domestic or international problems in the news right now that a U.S. federal cabinet department could help address. For each: a one-line factual summary with one concrete detail (a number, place, or agency) and a source link. Be factual and current." }],
     maxTokens: 800 });
@@ -915,7 +956,7 @@ async function newsSnapshot() {
 const PRESIDENT_SYS =
 `You are the President of the United States, head of the executive branch, with a warm, folksy Southern manner. From the news provided, pick ONE problem that one or more of your cabinet departments can realistically help solve or mitigate, and write a concise Executive Plan to hand to your Chief of Staff. Do NOT assign departments yourself — that is the Chief of Staff's job.`;
 async function presidentPick(news) {
-  const { text } = await callLLM({ ...CONFIG.roles.president, system: PRESIDENT_SYS,
+  const { text } = await callLLM({ ...resolveRole("president"), system: PRESIDENT_SYS,
     messages: [{ role:"user", content:
       `CURRENT NEWS:\n${news}\n\nWrite the Executive Plan as plain text the Chief of Staff can act on. Include: PROBLEM (2-3 sentences with the key facts), DESIRED OUTCOME (1-2 sentences), and any CONSTRAINTS. Keep it under ~170 words.` }],
     maxTokens: 700 });
@@ -926,10 +967,7 @@ const presidentSpokenLine = () => southernSpice() + "I've been readin' the news 
 let presidentBusy = false;
 async function runPresident() {
   if (running || presidentBusy) return;
-  for (const role of ["webResearch","president","orchestrator","secretary"]) {
-    const prov = CONFIG.roles[role].provider;
-    if (!getKey(prov)) { clearTranscript(); tx("error","Missing key",`Set the ${CONFIG.providers[prov].label} key in Settings (needed for the ${role}).`); return; }
-  }
+  if (!anyKeySet()) { clearTranscript(); tx("error","Missing key","Set at least one API key (OpenAI, OpenRouter, or Anthropic) in Settings."); return; }
   presidentBusy = true; $("prez").disabled = true; $("run").disabled = true;
   unlockAudio(); resetStates(); clearTranscript();
   try {
@@ -972,8 +1010,8 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("qa")
 const PROVIDERS = Object.keys(CONFIG.providers);
 function hydrateSettings() {
   for (const p of PROVIDERS) { $(`m-${p}`).textContent = CONFIG.providers[p].testModel; $(`k-${p}`).value = getKey(p); }
-  $("orchModel").textContent = CONFIG.roles.orchestrator.model;
-  $("secModel").textContent = CONFIG.roles.secretary.model;
+  $("orchModel").textContent = resolveRole("orchestrator").model;
+  $("secModel").textContent = resolveRole("secretary").model;
 }
 $("save").onclick = () => { for (const p of PROVIDERS) setKey(p, $(`k-${p}`).value.trim()); flash($("save"),"Saved ✓"); };
 $("forget").onclick = () => { forgetKeys(); for (const p of PROVIDERS) $(`k-${p}`).value=""; flash($("forget"),"Cleared"); };
