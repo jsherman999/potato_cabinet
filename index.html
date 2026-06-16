@@ -59,13 +59,15 @@
   .cos-seat .tater { width:92px; height:108px; }
   .cos-seat .seat-label .dept { color:var(--accent); }
   /* the 15 secretaries, lined up in three rows of five in front of the COS */
-  .field { display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:22px 10px;
-           width:min(94vw,640px); margin:18px auto 0; }
-  .field .seat { padding:6px 2px; }
-  .field .tater { width:64px; height:76px; }
+  .field { display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:16px 5px;
+           width:min(96vw,560px); margin:18px auto 0; }
+  .field .seat { padding:4px 1px; min-width:0; }
+  .field .tater { width:100%; max-width:64px; height:auto; }
   .field .seat .title { display:none; }
-  .field .seat-label { margin-top:5px; }
-  .field .seat-label .dept { background:rgba(20,16,10,.8); padding:1px 6px; border-radius:7px; }
+  .field .seat-label { margin-top:4px; max-width:100%; }
+  .field .seat-label .dept { display:inline-block; max-width:100%; font-size:10px; overflow:hidden;
+                             text-overflow:ellipsis; white-space:nowrap;
+                             background:rgba(20,16,10,.8); padding:1px 5px; border-radius:7px; }
   .bubble { position:absolute; top:-6px; left:50%; transform:translate(-50%,-100%);
             background:#15130f; border:1px solid var(--line); color:var(--ink); font-size:11px;
             padding:5px 8px; border-radius:8px; max-width:150px; white-space:normal; z-index:5;
