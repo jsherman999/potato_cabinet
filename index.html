@@ -6,7 +6,7 @@
 <title>Potato Cabinet</title>
 <style>
   :root {
-    --bg:#1c1a17; --panel:#2a2620; --ink:#efe7d6; --muted:#a89b82;
+    --bg:#000000; --panel:#2a2620; --ink:#efe7d6; --muted:#a89b82;
     --tater:#c9a35b; --line:#423b30; --ok:#6fbf73; --bad:#d9694e; --accent:#e0b35c;
     --st-idle:#8a7f6a; --st-assigned:#e0b35c; --st-working:#e0b35c;
     --st-speaking:#5bb6c7; --st-done:#6fbf73; --st-error:#d9694e;
@@ -74,6 +74,9 @@
             box-shadow:0 4px 14px rgba(0,0,0,.4); }
   .bubble::after { content:""; position:absolute; bottom:-5px; left:50%; transform:translateX(-50%);
             border:5px solid transparent; border-top-color:#15130f; }
+  /* President's "Plan issued" reads as a green done-box, matching the COS "Solution ready" badge */
+  .president-seat.done .bubble { background:var(--ok); color:#10220f; border-color:transparent; font-weight:650; }
+  .president-seat.done .bubble::after { border-top-color:var(--ok); }
 
   .seat.assigned .potato { box-shadow:0 0 0 3px var(--st-assigned); }
   .seat.assigned .pip    { background:var(--st-assigned); }
@@ -406,9 +409,10 @@ Keep the rationale to one sentence and each brief to 1-2 short sentences (max ~3
 function secretarySys(s) {
   return `You are the U.S. ${s.seat} (Department of ${s.dept}). Remit: ${s.scope}
 The White House Chief of Staff has tasked your department as part of solving a national problem. Give a concrete,
-realistic department action plan: the specific programs, authorities, or agencies you would use, the resources, and
-a rough timeline. Be specific and grounded in real federal programs; do not fabricate statutes or exact dollar
-figures you are unsure of. Keep it under ~180 words.`;
+realistic department action plan, laid out as a short numbered list of steps (1., 2., 3., …): for each step, the
+specific programs, authorities, or agencies you would use, the resources, and a rough timeline. Be specific and
+grounded in real federal programs; do not fabricate statutes or exact dollar figures you are unsure of. Keep it
+under ~180 words.`;
 }
 const SYNTH_SYS =
 `You are the White House Chief of Staff. Synthesize the department responses into ONE coherent general solution for
@@ -536,7 +540,10 @@ async function pumpSpeech() {
   while (speech.queue.length) {
     const it = speech.queue.shift();
     const seat = document.querySelector(`.seat[data-id="${it.seatId}"]`);
-    if (seat) seat.classList.add("talking");
+    if (seat) {                                  // keep the view on whoever's talking
+      seat.classList.add("talking");
+      if ($("qa").hidden) seat.scrollIntoView({ behavior:"smooth", block:"nearest" });
+    }
     try {
       if (CONFIG.tts.engine === "openai" && getKey("openai")) await speakOpenAI(it.text, seatVoice(it.seatId), voiceInstructions(it.seatId));
       else await speakBrowser(it.text, it.seatId);
@@ -580,18 +587,23 @@ function speakBrowser(text, seatId) {
 }
 if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { _voices = speechSynthesis.getVoices(); };
 
-const TASKED_LINES = [
-  (s) => `${s.dept} here — Chief of Staff handed us a ${friggin()}job.`,
-  (s) => `This here's ${s.dept}. We got our ${friggin()}orders.`,
-  (s) => `${s.dept} reportin' for duty. Chief of Staff put us to ${friggin()}work.`,
-];
 const DONE_LINES = [
-  (s) => `${s.dept}'s plan is ${friggin()}ready.`,
-  (s) => `Alright now, ${s.dept}'s got a ${friggin()}plan put together.`,
-  (s) => `${s.dept} here — our work is ${friggin()}done.`,
+  (s, n) => `This here's ${s.dept} — we got a ${n}-step proposal for you, Chief!`,
+  (s, n) => `${s.dept} reportin' in, Chief — ${n} steps in our plan and she's ${friggin()}ready.`,
+  (s, n) => `Alright now, Chief — ${s.dept}'s put together a ${n}-step plan for ya.`,
 ];
-const announceTasked = (s) => southernSpice() + pick(TASKED_LINES)(s);
-const announceDone   = (s) => southernSpice() + pick(DONE_LINES)(s);
+const announceDone = (s, n) => southernSpice() + pick(DONE_LINES)(s, n);
+
+// Chief of Staff narrates the hand-offs (assigning / coordinating)
+const joinDepts = (a) => a.length <= 1 ? (a[0] || "") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1];
+const cosAssignLine = (depts) => southernSpice() + `Chief of Staff here — I'm puttin' ${joinDepts(depts)} on this one.`;
+const cosCoordLine  = () => southernSpice() + `Alright now, y'all coordinate and line them plans up.`;
+
+// count the numbered steps in a department's plan, for the spoken "N-step proposal"
+function countSteps(text) {
+  const numbered = (String(text).match(/^\s*\d+[.)]/gm) || []).length;
+  return numbered || String(text).split(/\n+/).filter(l => l.trim()).length || 1;
+}
 
 /* ============================== POTATO + CABINET UI ============================== */
 const $ = (id) => document.getElementById(id);
@@ -616,7 +628,7 @@ function potatoSVG(color, seed) {
     </defs>
     <!-- dark mouth cavity, revealed when the jaw flaps open -->
     <path d="${body}" fill="#2e1308" clip-path="url(#lo-${uid})"/>
-    <!-- upper two-thirds (static): face, eyes, brows, resting lip -->
+    <!-- upper two-thirds (static): face, eyes, brows -->
     <g clip-path="url(#up-${uid})">
       <path class="body" d="${body}" fill="url(#${g})" stroke="#7c5a28" stroke-width="2"/>
       <ellipse cx="27" cy="46" rx="3" ry="2" fill="#9c7434" opacity=".5"/>
@@ -628,8 +640,6 @@ function potatoSVG(color, seed) {
         <circle cx="40" cy="51" r="1.6" fill="#fff" opacity=".85"/>
         <circle cx="66" cy="51" r="1.6" fill="#fff" opacity=".85"/>
       </g>
-      <!-- resting mouth: a straight line marking where the jaw opens when talking -->
-      <path d="M37 75 L63 75" stroke="#3a241a" stroke-width="2.6" fill="none" stroke-linecap="round"/>
     </g>
     <!-- bottom third = the jaw; flaps up/down while talking -->
     <g class="jaw">
@@ -810,8 +820,7 @@ function tx(cls, head, body, color){
   e.innerHTML = `<div class="ehead"></div><div class="ebody"></div>`;
   e.querySelector(".ehead").textContent = head;
   e.querySelector(".ebody").textContent = body;
-  $("transcript").appendChild(e);
-  e.scrollIntoView({ behavior:"smooth", block:"nearest" });
+  $("transcript").appendChild(e);     // don't scroll the page — keep the view on the speaking potatoes
   return e;
 }
 
@@ -847,16 +856,16 @@ async function runCase(caseText, opts = {}) {
 
   // 2. dispatch (parallel)
   for (const a of plan.assignments) { setState(a.ref.id,"assigned"); setBubble(a.ref.id,"Tasked"); }
+  announce("cos", cosAssignLine(plan.assignments.map(a => a.ref.dept)));
   txStatus("Departments working…");
   let results = await Promise.all(plan.assignments.map(async a => {
     setState(a.ref.id,"working"); setBubble(a.ref.id,"Working…");
-    announce(a.ref.id, announceTasked(a.ref));
     try {
       const planText = await dispatch(a.ref, caseText, a.brief);
       setState(a.ref.id,"done"); setBubble(a.ref.id,"Done ✓");
       tx("dept", `${a.ref.dept} — ${a.ref.seat}`, planText, a.ref.color);
       seatPlans[a.ref.id] = planText;
-      announce(a.ref.id, announceDone(a.ref));
+      announce(a.ref.id, announceDone(a.ref, countSteps(planText)));
       return { id:a.ref.id, dept:a.ref.dept, seat:a.ref.seat, plan:planText, ref:a.ref };
     } catch (e) { setState(a.ref.id,"error"); setBubble(a.ref.id,"Error"); tx("error", a.ref.dept, e.message); return null; }
   }));
@@ -866,12 +875,13 @@ async function runCase(caseText, opts = {}) {
   // 3. coordinate (optional, one round)
   if (plan.coordination && results.length > 1) {
     txStatus("Departments coordinating…");
+    announce("cos", cosCoordLine());
     results = await Promise.all(results.map(async r => {
       setState(r.id,"working"); setBubble(r.id,"Coordinating…");
       const others = results.filter(o => o.id !== r.id).map(o => ({ dept:o.dept, plan:o.plan }));
       try {
         const upd = await coordinate(r.ref, caseText, r.plan, others);
-        setState(r.id,"done"); setBubble(r.id,"Aligned ✓");
+        setState(r.id,"done"); setBubble(r.id,"");
         tx("dept", `${r.dept} — coordinated plan`, upd, r.ref.color);
         seatPlans[r.id] = upd;
         return { ...r, plan: upd };
