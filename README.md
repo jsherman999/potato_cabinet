@@ -24,6 +24,8 @@ rendered as a talking potato. The entire app is one self-contained
 
 ![](screenshots/04-ask.png)
 
+![](screenshots/05-case-file.png)
+
 ## How it works
 
 - **Chief of Staff (orchestrator)** decomposes the problem into JSON assignments, dispatches
