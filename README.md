@@ -34,8 +34,7 @@ rendered as a talking potato. The entire app is one self-contained
 - **15 cabinet secretaries** — each an LLM agent grounded in its department's remit.
 - **President (optional)** — reviews current news, picks a solvable problem, writes an
   Executive Plan, and hands it to the Chief of Staff.
-- **Voice** — each potato speaks (OpenAI neural TTS — a Southern male drawl with a per-seat
-  pitch spread); mouths animate while talking.
+- **Voice** — each potato speaks (OpenAI neural TTS); mouths animate while talking.
 - **Q&A** — click any potato to ask it questions about the active case or its department.
 - **Attachments** — paste links (fetched + summarized) or attach images (vision-analyzed)
   to enrich the case file before routing.
