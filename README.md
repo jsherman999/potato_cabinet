@@ -11,7 +11,8 @@
 Describe a real-world problem — or let the President pick one from the news — and watch an
 LLM "Chief of Staff" route it to the relevant federal departments, coordinate them, and
 synthesize a single solution. Each of the 15 cabinet secretaries is its own LLM agent,
-rendered as a talking potato. The entire app is one self-contained
+rendered as a talking potato — real potato photos with googly eyes and a ventriloquist-dummy
+jaw — seated in a ring around the cabinet table. The entire app is one self-contained
 `index.html` (no build step, no server, no dependencies); you supply your own API keys.
 
 ## Screenshots
@@ -34,7 +35,12 @@ rendered as a talking potato. The entire app is one self-contained
 - **15 cabinet secretaries** — each an LLM agent grounded in its department's remit.
 - **President (optional)** — reviews current news, picks a solvable problem, writes an
   Executive Plan, and hands it to the Chief of Staff.
-- **Voice** — each potato speaks (OpenAI neural TTS); mouths animate while talking.
+- **The cabinet table** — the secretaries sit in a circle; the latest statement takes the floor
+  in the middle of the table, then drops down into the transcript below (newest first).
+- **Voice** — each potato speaks (OpenAI neural TTS); its jaw drops open in time with the
+  actual audio loudness (browser-speech fallback just flaps).
+- **Potato looks** — pick *Photo — mixed / Yukon gold / red / sweet* or the original
+  *Cartoon* drawing from the selector on the Cabinet card (remembered per browser).
 - **Q&A** — click any potato to ask it questions about the active case or its department.
 - **Attachments** — paste links (fetched + summarized) or attach images (vision-analyzed)
   to enrich the case file before routing.
@@ -43,7 +49,7 @@ rendered as a talking potato. The entire app is one self-contained
 
 You only need the one file:
 
-1. Download **`index.html`** (~60 KB — the whole app; no other files required) or use the
+1. Download **`index.html`** (~140 KB including the embedded potato photos — the whole app; no other files required) or use the
    [live demo](https://jsherman999.github.io/potato_cabinet/).
 2. Open it in a browser (double-click / `file://` — no server needed).
 3. Open **Settings**, paste **at least one** API key (see [Getting API keys](#getting-api-keys)), and **Test all providers**.
@@ -72,7 +78,7 @@ Yes. There is **no backend** — the app is a single static HTML file, so there'
 your keys to be sent except the model providers themselves. Your keys are stored only in
 **your own browser** (`localStorage`) and are transmitted over HTTPS **directly** to
 OpenAI / OpenRouter / Anthropic — the only network requests the app makes. Nothing goes to
-any server of mine (there isn't one). You can read the entire ~60 KB `index.html` to verify
+any server of mine (there isn't one). You can read the entire `index.html` (~140 KB, most of it embedded photos) to verify
 this yourself, and the **Forget keys** button wipes them from your browser at any time.
 
 ## Models (configurable in the `CONFIG.roles` block near the top of `index.html`)
@@ -93,6 +99,11 @@ Voice (TTS) uses OpenAI `gpt-4o-mini-tts` when an OpenAI key is set, otherwise t
 built-in speech. **Bold** = the default used when every key is present.
 
 See **[PLAN.md](PLAN.md)** for the full design, model research, and build notes.
+
+## Credits
+
+Potato photos: [Fruits-360 dataset](https://github.com/Horea94/Fruit-Images-Dataset) by Horea Muresan
+& Mihai Oltean (MIT License) — cut out of their white backgrounds and embedded in `index.html`.
 
 ---
 *Built with Claude Code. It's potatoes all the way down.*
