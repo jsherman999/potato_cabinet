@@ -491,7 +491,7 @@ async function callLLM({ provider, model, system, messages, maxTokens, json, sig
   const msgs = system ? [{ role:"system", content:system }, ...msgsImg("openai")] : msgsImg("openai");
   const body = { model, messages:msgs };
   if (provider === "openai") {                // OpenAI wants max_completion_tokens (o-series / gpt-5 reject max_tokens)
-    const reasoning = /^(o\d|gpt-5)/.test(model);
+    const reasoning = /^(o\d|gpt-[5-9])/.test(model);
     body.max_completion_tokens = reasoning ? max * 4 : max;   // reasoning tokens count against the limit
     if (reasoning) body.reasoning_effort = "low";
   } else body.max_tokens = max;
@@ -501,10 +501,28 @@ async function callLLM({ provider, model, system, messages, maxTokens, json, sig
     headers["HTTP-Referer"] = (location && location.origin && location.origin!=="null") ? location.origin : "https://potato.cabinet.local";
     headers["X-Title"] = CONFIG.appTitle;
   }
-  const res = await fetch(p.endpoint, { method:"POST", headers, body: JSON.stringify(body), signal });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data?.error?.message || `HTTP ${res.status}`);
-  return { text: data?.choices?.[0]?.message?.content ?? "", raw:data };
+  const send = async (b) => {
+    const res = await fetch(p.endpoint, { method:"POST", headers, body: JSON.stringify(b), signal });
+    const data = await res.json();
+    if (!res.ok || data?.error) throw new Error(data?.error?.message || `HTTP ${res.status}`);   // OpenRouter can 200 with an error
+    const choice = data?.choices?.[0] || {}, c = choice.message?.content;
+    const text = Array.isArray(c) ? c.map(x => x?.text || "").join("") : (c || "");
+    return { text, raw:data, finish: choice.finish_reason || choice.native_finish_reason || "" };
+  };
+  let out = await send(body);
+  if (!out.text.trim()) {
+    // reasoning models can spend the whole token budget thinking and answer with nothing:
+    // retry once with 4x the room and low reasoning effort before giving up
+    const retry = { ...body };
+    if (provider === "openai") {
+      retry.max_completion_tokens = body.max_completion_tokens * 4;
+      if (/^(o\d|gpt-[5-9])/.test(model)) retry.reasoning_effort = "low";
+    } else { retry.max_tokens = max * 4; retry.reasoning = { effort:"low" }; }
+    out = await send(retry);
+    if (!out.text.trim()) throw new Error(`${model} returned an empty answer${out.finish ? ` (finish_reason: ${out.finish})` : ""} — `
+      + `if it's a reasoning model it may be using up its token budget; try another model in Settings`);
+  }
+  return { text: out.text, raw: out.raw };
 }
 
 /* ============================== ORCHESTRATION ==============================
@@ -1193,10 +1211,15 @@ async function runCase(caseText, opts = {}) {
    Opus 4.8 reviews a live news snapshot (gemini-2.5-flash:online), picks a problem
    a department can address, writes an Executive Plan, and hands it to the Chief of Staff. */
 async function newsSnapshot() {
-  const { text } = await callLLM({ ...resolveRole("webResearch"),
+  const role = resolveRole("webResearch"), live = role.model.endsWith(":online");   // live web search on OpenRouter only
+  const today = new Date().toLocaleDateString("en-US", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
+  const { text } = await callLLM({ ...role,
     messages: [{ role:"user", content:
-      "List 4-5 significant, currently-unfolding U.S. domestic or international problems in the news right now that a U.S. federal cabinet department could help address. For each: a one-line factual summary with one concrete detail (a number, place, or agency) and a source link. Be factual and current." }],
-    maxTokens: 800 });
+      `Today is ${today}. List 4-5 significant, currently-unfolding U.S. domestic or international problems in the news right now that a U.S. federal cabinet department could help address. For each: a one-line factual summary with one concrete detail (a number, place, or agency) and a source link. Be factual and current.`
+      + (live ? "" : " You may not have live web access: in that case list the most significant recent problems you know of, and say they may be dated. Always return a list.") }],
+    maxTokens: 1500 });
+  if ((text || "").trim().length < 40)
+    throw new Error(`the news search came back empty (${role.model}) — try again, or pick a different model in Settings`);
   return text;
 }
 const PRESIDENT_SYS =
@@ -1220,6 +1243,7 @@ async function runPresident() {
     setState("president","working"); setBubble("president","Readin' the news…");
     txStatus("President is reviewing the news…");
     const news = await newsSnapshot();
+    tx("pres", `President — today's news${resolveRole("webResearch").model.endsWith(":online") ? " (live web search)" : " (from the model's own knowledge — no live search with this key)"}`, news, null, "president");
     txStatus("President is choosing a problem…");
     const plan = await presidentPick(news);
     tx("pres", `President — Executive Plan (${PRESIDENT.name})`, plan, null, "president");
