@@ -208,6 +208,11 @@
   label.fld { display:block; font-size:13px; color:var(--muted); margin:14px 0 5px; }
   a.keyhelp { color:var(--accent); text-decoration:none; font-weight:600; }
   a.keyhelp:hover { text-decoration:underline; }
+  .keykind { font-weight:600; margin-left:6px; }
+  .keykind.ok { color:var(--ok); } .keykind.bad { color:var(--bad); } .keykind.run { color:var(--accent); }
+  .model-row { display:flex; gap:8px; flex-wrap:wrap; }
+  .model-row select { flex:2 1 260px; min-width:0; }
+  .model-row input { flex:1 1 140px; width:auto; }
   .keynote { font-size:12.5px; color:var(--ink); background:#15130f; border:1px solid var(--line);
              border-radius:8px; padding:10px 12px; margin:6px 0 4px; }
   input[type=password], input[type=text] { width:100%; padding:9px 11px; background:#15130f; color:var(--ink);
@@ -275,7 +280,6 @@
       </label>
     </div>
     <div class="attach-list" id="attachList"></div>
-    <span id="orchModel" hidden></span><span id="secModel" hidden></span>
   </div>
 
   <div class="card cabinet">
@@ -300,34 +304,33 @@
     <div id="transcript"></div>
   </div>
 
-  <details class="card">
-    <summary>Settings — API keys &amp; connection test</summary>
-    <p class="keynote">You only need <strong>one</strong> key. The Cabinet routes every role to whichever
-      provider(s) you set, so a single key drives the whole app. <strong>OpenRouter</strong> is the easiest start —
-      one key reaches OpenAI, Google &amp; Anthropic models and powers live web research; add <strong>OpenAI</strong>
-      for neural voices, or <strong>Anthropic</strong> to run Claude directly.</p>
-    <label class="fld" for="k-openai">OpenAI key (<span id="m-openai"></span>) —
-      <a class="keyhelp" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener"
-         title="Sign in at platform.openai.com, add billing, then create a secret key (starts with sk-). Enables neural voices + OpenAI models.">get a key ↗</a></label>
-    <input id="k-openai" type="password" placeholder="sk-proj-…" autocomplete="off">
-    <label class="fld" for="k-openrouter">OpenRouter key (<span id="m-openrouter"></span>) —
-      <a class="keyhelp" href="https://openrouter.ai/keys" target="_blank" rel="noopener"
-         title="Sign up at openrouter.ai, add a few dollars of credit, then create a key (starts with sk-or-v1-). One key reaches OpenAI, Google, Anthropic, Meta and more.">get a key ↗</a></label>
-    <input id="k-openrouter" type="password" placeholder="sk-or-v1-…" autocomplete="off">
-    <label class="fld" for="k-anthropic">Anthropic key (<span id="m-anthropic"></span>) —
-      <a class="keyhelp" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener"
-         title="Sign in at console.anthropic.com, add billing, then create a key (starts with sk-ant-). Runs Claude (Opus / Sonnet / Haiku) directly.">get a key ↗</a></label>
-    <input id="k-anthropic" type="password" placeholder="sk-ant-…" autocomplete="off">
-    <div class="actions">
-      <button id="save">Save keys</button>
-      <button id="forget" class="ghost">Forget keys</button>
-      <label style="display:inline-flex;align-items:center;gap:6px;margin:0;color:var(--ink)">
-        <input id="show" type="checkbox"> show
-      </label>
-      <button id="test">Test all providers</button>
+  <details class="card" id="settings">
+    <summary>Settings — API key &amp; model</summary>
+    <p class="keynote">Paste <strong>one</strong> API key — <strong>OpenRouter</strong>, <strong>OpenAI</strong> or
+      <strong>Anthropic</strong>. The app detects which provider it's from, loads that provider's models, and runs the
+      whole Cabinet — President, Chief of Staff and all 15 secretaries — on the model you pick.
+      Get a key: <a class="keyhelp" href="https://openrouter.ai/keys" target="_blank" rel="noopener">OpenRouter ↗</a>
+      (easiest — one key reaches OpenAI, Google, Anthropic, Meta… and adds live web search) ·
+      <a class="keyhelp" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">OpenAI ↗</a>
+      (also unlocks the neural voices) ·
+      <a class="keyhelp" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">Anthropic ↗</a></p>
+    <label class="fld" for="apiKey">API key <span id="keyKind" class="keykind"></span></label>
+    <input id="apiKey" type="password" placeholder="sk-or-v1-…  ·  sk-proj-…  ·  sk-ant-…" autocomplete="off" spellcheck="false">
+    <label class="fld" for="modelSel">Model — used by every member of the Cabinet <span id="modelNote" class="keykind"></span></label>
+    <div class="model-row">
+      <select id="modelSel" class="ex-select" disabled><option>Enter a key to load models…</option></select>
+      <input id="modelFilter" type="text" placeholder="filter models…" autocomplete="off" disabled>
     </div>
-    <p class="note" style="margin-top:12px">Keys live only in this browser (localStorage) and are sent only to
-      the provider you call. Anthropic is hit directly via the <code>anthropic-dangerous-direct-browser-access</code> header.</p>
+    <div class="actions">
+      <button id="test">Test model</button>
+      <button id="forget" class="ghost">Forget key</button>
+      <label style="display:inline-flex;align-items:center;gap:6px;margin:0;color:var(--ink)">
+        <input id="show" type="checkbox"> show key
+      </label>
+    </div>
+    <p class="note" style="margin-top:12px">The key lives only in this browser (localStorage) and is sent only to
+      that provider. Anthropic is called directly via the <code>anthropic-dangerous-direct-browser-access</code> header.
+      Voices use OpenAI's neural TTS when the key is an OpenAI key; otherwise your browser's built-in speech.</p>
     <div class="status" id="status"></div>
   </details>
 
@@ -357,40 +360,16 @@
 /* ============================== CONFIG ============================== */
 const CONFIG = {
   providers: {
-    openai:     { label:"OpenAI",     endpoint:"https://api.openai.com/v1/chat/completions",    format:"openai",    testModel:"gpt-4.1-mini" },
-    openrouter: { label:"OpenRouter", endpoint:"https://openrouter.ai/api/v1/chat/completions", format:"openai",    testModel:"google/gemini-2.5-flash" },
-    anthropic:  { label:"Anthropic",  endpoint:"https://api.anthropic.com/v1/messages",         format:"anthropic", testModel:"claude-haiku-4-5" },
+    openai:     { label:"OpenAI",     endpoint:"https://api.openai.com/v1/chat/completions",    format:"openai",
+                  models:"https://api.openai.com/v1/models",               prefer:["gpt-4.1-mini","gpt-4o-mini","gpt-4.1"] },
+    openrouter: { label:"OpenRouter", endpoint:"https://openrouter.ai/api/v1/chat/completions", format:"openai",
+                  models:"https://openrouter.ai/api/v1/models",            prefer:["openai/gpt-4.1-mini","openai/gpt-4o-mini","google/gemini-2.5-flash"] },
+    anthropic:  { label:"Anthropic",  endpoint:"https://api.anthropic.com/v1/messages",         format:"anthropic",
+                  models:"https://api.anthropic.com/v1/models?limit=1000", prefer:["claude-sonnet-4-6","claude-haiku-4-5"] },
   },
-  // Each role lists provider candidates in preference order. The app uses the first
-  // candidate whose key is set — so a single key routes every role to that one provider,
-  // while all three keys reproduces the original per-role defaults (the first entry each).
-  roles: {
-    president: [
-      { provider:"anthropic",  model:"claude-opus-4-8" },
-      { provider:"openrouter", model:"openai/gpt-4.1-mini" },
-      { provider:"openai",     model:"gpt-4.1-mini" },
-    ],
-    orchestrator: [
-      { provider:"anthropic",  model:"claude-sonnet-4-6" },
-      { provider:"openrouter", model:"openai/gpt-4.1-mini" },
-      { provider:"openai",     model:"gpt-4.1-mini" },
-    ],
-    secretary: [
-      { provider:"openrouter", model:"openai/gpt-4o-mini" },
-      { provider:"openai",     model:"gpt-4o-mini" },
-      { provider:"anthropic",  model:"claude-haiku-4-5" },
-    ],
-    webResearch: [
-      { provider:"openrouter", model:"google/gemini-2.5-flash:online" },
-      { provider:"openai",     model:"gpt-4.1-mini" },
-      { provider:"anthropic",  model:"claude-sonnet-4-6" },
-    ],
-    vision: [
-      { provider:"openrouter", model:"google/gemini-2.5-flash" },
-      { provider:"openai",     model:"gpt-4o-mini" },
-      { provider:"anthropic",  model:"claude-haiku-4-5" },
-    ],
-  },
+  // One key, one model: the provider is detected from the key, and the model picked in
+  // Settings runs every role (President, Chief of Staff, secretaries, link reading, images).
+  // `prefer` is the default pick when the model list loads (first one the provider offers).
   tts: {
     enabled: true,
     engine: "openai",                       // "openai" (neural) | "browser" (speechSynthesis fallback)
@@ -440,18 +419,41 @@ const EXAMPLES = {
   cyber:"A sophisticated ransomware attack has crippled hospital systems and a major regional power utility, with attackers demanding payment while patient care and the grid are disrupted across three states.",
 };
 
-/* ============================== KEY STORE ============================== */
-const KEY_STORE = "pc_keys";
+/* ============================== KEY + MODEL STORE ==============================
+   A single API key. Its provider is recognised from the prefix: OpenRouter keys start
+   sk-or-, Anthropic keys sk-ant-, and any other sk- key is OpenAI (sk-proj-, sk-svcacct-, …). */
+const KEY_STORE = "pc_keys", MODEL_STORE = "pc_model";
+function detectProvider(key) {
+  const k = String(key || "").trim();
+  if (/^sk-or-/i.test(k)) return "openrouter";
+  if (/^sk-ant-/i.test(k)) return "anthropic";
+  if (/^sk-/i.test(k)) return "openai";
+  return null;
+}
 const getKeys = () => { try { return JSON.parse(localStorage.getItem(KEY_STORE)) || {}; } catch { return {}; } };
-const getKey  = (p) => getKeys()[p] || "";
-function setKey(p,v){ const k=getKeys(); if(v) k[p]=v; else delete k[p]; localStorage.setItem(KEY_STORE, JSON.stringify(k)); }
-const forgetKeys = () => localStorage.removeItem(KEY_STORE);
-const anyKeySet = () => Object.keys(CONFIG.providers).some(getKey);
-// pick the first provider candidate for a role whose key is set (falls back to the
-// first candidate so callers still get a sensible "no key" error when none are set)
+function activeProvider() {                 // the provider of the one saved key
+  const k = getKeys();
+  return ["openrouter","openai","anthropic"].find(p => k[p]) || null;   // older multi-key saves: first one wins
+}
+const getKey = (p) => (p && p === activeProvider()) ? getKeys()[p] : "";
+function saveKey(key) {                     // replaces whatever was saved before
+  const p = detectProvider(key);
+  if (!p) return null;
+  localStorage.setItem(KEY_STORE, JSON.stringify({ [p]: key.trim() }));
+  return p;
+}
+const forgetKeys = () => { localStorage.removeItem(KEY_STORE); localStorage.removeItem(MODEL_STORE); };
+const anyKeySet = () => !!activeProvider();
+const getModel = () => { try { return JSON.parse(localStorage.getItem(MODEL_STORE)) || null; } catch { return null; } };
+const setModel = (provider, id) => localStorage.setItem(MODEL_STORE, JSON.stringify({ provider, id }));
+// every role runs on the chosen model; before one is chosen, the provider's first preference.
+// On OpenRouter the web-research role (news + reading links) adds :online for live web search.
 function resolveRole(name) {
-  const cands = CONFIG.roles[name] || [];
-  return cands.find(c => getKey(c.provider)) || cands[0];
+  const provider = activeProvider() || "openrouter";
+  const m = getModel();
+  let model = (m && m.provider === provider && m.id) ? m.id : CONFIG.providers[provider].prefer[0];
+  if (name === "webResearch" && provider === "openrouter" && !model.endsWith(":online")) model += ":online";
+  return { provider, model };
 }
 
 /* ============================ PROVIDER ADAPTER ============================ */
@@ -486,7 +488,12 @@ async function callLLM({ provider, model, system, messages, maxTokens, json, sig
     return { text, raw:data };
   }
   const msgs = system ? [{ role:"system", content:system }, ...msgsImg("openai")] : msgsImg("openai");
-  const body = { model, max_tokens:max, messages:msgs };
+  const body = { model, messages:msgs };
+  if (provider === "openai") {                // OpenAI wants max_completion_tokens (o-series / gpt-5 reject max_tokens)
+    const reasoning = /^(o\d|gpt-5)/.test(model);
+    body.max_completion_tokens = reasoning ? max * 4 : max;   // reasoning tokens count against the limit
+    if (reasoning) body.reasoning_effort = "low";
+  } else body.max_tokens = max;
   if (json) body.response_format = { type:"json_object" };
   const headers = { "content-type":"application/json", "authorization":`Bearer ${key}` };
   if (provider === "openrouter") {
@@ -996,7 +1003,7 @@ async function doAsk() {
   const q = $("qaText").value.trim();
   if (!q || !qaSeat) return;
   const seat = qaSeat;
-  if (!anyKeySet()) { qaMsg("a", "Set an API key (OpenAI, OpenRouter, or Anthropic) in Settings first."); return; }
+  if (!anyKeySet()) { qaMsg("a", "Paste an API key (OpenRouter, OpenAI or Anthropic) in Settings first."); needKey(); return; }
   $("qaText").value = ""; $("qaAsk").disabled = true;
   qaMsg("u", q);
   const bubble = qaMsg("a", "…");
@@ -1073,7 +1080,7 @@ async function runCase(caseText, opts = {}) {
   if (running) return;
   caseText = (caseText || "").trim();
   if (!caseText) { tx("error","No problem given","Type or pick an example problem first."); return; }
-  if (!anyKeySet()) { clearTranscript(); tx("error","Missing key","Set at least one API key (OpenAI, OpenRouter, or Anthropic) in Settings."); return; }
+  if (!anyKeySet()) { clearTranscript(); tx("error","Missing key","Paste an API key (OpenRouter, OpenAI or Anthropic) in Settings, then pick a model."); needKey(); return; }
   running = true; $("run").disabled = true;
   if (opts.keep) { for (const s of SECRETARIES) { setState(s.id,"idle"); setBubble(s.id,""); } setState("cos","idle"); setBubble("cos",""); setCosStatus(""); }
   else { resetStates(); clearTranscript(); }
@@ -1164,7 +1171,7 @@ const presidentSpokenLine = () => southernSpice() + "I've been readin' the news 
 let presidentBusy = false;
 async function runPresident() {
   if (running || presidentBusy) return;
-  if (!anyKeySet()) { clearTranscript(); tx("error","Missing key","Set at least one API key (OpenAI, OpenRouter, or Anthropic) in Settings."); return; }
+  if (!anyKeySet()) { clearTranscript(); tx("error","Missing key","Paste an API key (OpenRouter, OpenAI or Anthropic) in Settings, then pick a model."); needKey(); return; }
   presidentBusy = true; $("prez").disabled = true; $("run").disabled = true;
   unlockAudio(); resetStates(); clearTranscript();
   try {
@@ -1204,34 +1211,139 @@ $("qaClose").onclick = closeQA;
 $("qa").addEventListener("click", (e) => { if (e.target === $("qa")) closeQA(); });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("qa").hidden) closeQA(); });
 
-/* ============================== SETTINGS ============================== */
-const PROVIDERS = Object.keys(CONFIG.providers);
-function hydrateSettings() {
-  for (const p of PROVIDERS) { $(`m-${p}`).textContent = CONFIG.providers[p].testModel; $(`k-${p}`).value = getKey(p); }
-  $("orchModel").textContent = resolveRole("orchestrator").model;
-  $("secModel").textContent = resolveRole("secretary").model;
+/* ============================== SETTINGS ==============================
+   One key field: detect the provider, save the key, fetch that provider's model list,
+   and let the user pick the single model the whole Cabinet runs on. */
+const PROV_LABEL = (p) => CONFIG.providers[p]?.label || p;
+let modelList = [];                     // [{ id, name }] for the active provider
+let modelsReq = 0;                      // ignore stale responses when the key changes quickly
+function keyStatus(text, cls) { const el = $("keyKind"); el.textContent = text; el.className = "keykind " + (cls || ""); }
+function modelStatus(text, cls) { const el = $("modelNote"); el.textContent = text; el.className = "keykind " + (cls || ""); }
+
+async function fetchModels(provider, key) {
+  const P = CONFIG.providers[provider];
+  const bad = async (res) => {
+    let msg = `HTTP ${res.status}`; try { const j = await res.json(); msg = j?.error?.message || j?.error || msg; } catch {}
+    return new Error(res.status === 401 || res.status === 403 ? `${P.label} rejected this key (${msg})` : msg);
+  };
+  if (provider === "openrouter") {
+    // the model catalogue is public, so check the key itself first
+    const chk = await fetch("https://openrouter.ai/api/v1/key", { headers: { authorization: `Bearer ${key}` } });
+    if (!chk.ok) throw await bad(chk);
+    const res = await fetch(P.models, { headers: { authorization: `Bearer ${key}` } });
+    if (!res.ok) throw await bad(res);
+    const j = await res.json();
+    return (j.data || [])
+      .filter(m => (m.architecture?.output_modalities || ["text"]).includes("text"))
+      .map(m => ({ id: m.id, name: m.name || m.id }))
+      .sort((x, y) => x.name.localeCompare(y.name));
+  }
+  if (provider === "openai") {
+    const res = await fetch(P.models, { headers: { authorization: `Bearer ${key}` } });
+    if (!res.ok) throw await bad(res);
+    const j = await res.json();
+    return (j.data || [])       // chat-capable models only
+      .filter(m => /^(gpt-|chatgpt-|o\d)/.test(m.id) && !/(audio|realtime|tts|transcribe|image|search|embedding|instruct|moderation|dall-e|whisper|codex)/.test(m.id))
+      .sort((x, y) => (y.created || 0) - (x.created || 0))
+      .map(m => ({ id: m.id, name: m.id }));
+  }
+  const res = await fetch(P.models, { headers: { "x-api-key": key, "anthropic-version": CONFIG.anthropicVersion,
+                                                 "anthropic-dangerous-direct-browser-access": "true" } });
+  if (!res.ok) throw await bad(res);
+  const j = await res.json();
+  return (j.data || []).map(m => ({ id: m.id, name: m.display_name ? `${m.display_name}  (${m.id})` : m.id }));
 }
-$("save").onclick = () => { for (const p of PROVIDERS) setKey(p, $(`k-${p}`).value.trim()); flash($("save"),"Saved ✓"); };
-$("forget").onclick = () => { forgetKeys(); for (const p of PROVIDERS) $(`k-${p}`).value=""; flash($("forget"),"Cleared"); };
-$("show").onchange = (e) => { for (const p of PROVIDERS) $(`k-${p}`).type = e.target.checked ? "text":"password"; };
+function renderModelOptions() {
+  const sel = $("modelSel"), q = $("modelFilter").value.trim().toLowerCase(), cur = resolveRole("secretary").model;
+  let list = q ? modelList.filter(m => (m.name + " " + m.id).toLowerCase().includes(q)) : modelList;
+  if (!list.some(m => m.id === cur)) { const c = modelList.find(m => m.id === cur); if (c) list = [c, ...list]; }  // keep the chosen one visible
+  sel.innerHTML = list.length ? list.map(m => `<option value="${m.id}"></option>`).join("") : `<option value="">No models match “${q}”</option>`;
+  [...sel.options].forEach((o, i) => { if (list[i]) { o.textContent = list[i].name; o.title = list[i].id; } });
+  sel.value = cur;
+}
+// load the model list for a key; a newly entered key is only saved once its provider accepts it
+async function loadModels(newKey) {
+  const provider = newKey ? detectProvider(newKey) : activeProvider();
+  const key = newKey || (provider && getKey(provider)), req = ++modelsReq;
+  const sel = $("modelSel");
+  modelList = [];
+  $("modelFilter").value = "";
+  if (!provider) {
+    sel.innerHTML = `<option>Enter a key to load models…</option>`; sel.disabled = true; $("modelFilter").disabled = true;
+    modelStatus(""); return;
+  }
+  // usable straight away with the saved (or default) model while the list loads
+  const saved0 = getModel();
+  const cur = (saved0 && saved0.provider === provider) ? saved0.id : CONFIG.providers[provider].prefer[0];
+  sel.innerHTML = `<option value="${cur}"></option>`; sel.options[0].textContent = cur; sel.disabled = true;
+  modelStatus(`loading ${PROV_LABEL(provider)} models…`, "run");
+  try {
+    const list = await fetchModels(provider, key);
+    if (req !== modelsReq) return;
+    if (!list.length) throw new Error("no models returned");
+    if (newKey) saveKey(newKey);
+    modelList = list;
+    const saved = getModel();
+    if (!(saved && saved.provider === provider && list.some(m => m.id === saved.id))) {
+      const pick = CONFIG.providers[provider].prefer.find(id => list.some(m => m.id === id)) || list[0].id;
+      setModel(provider, pick);
+    }
+    sel.disabled = false; $("modelFilter").disabled = list.length < 12;
+    renderModelOptions();
+    keyStatus(`✓ ${PROV_LABEL(provider)} key — saved in this browser`, "ok");
+    modelStatus(`${list.length} models`, "ok");
+  } catch (e) {
+    if (req !== modelsReq) return;
+    sel.disabled = true;
+    modelStatus("");
+    keyStatus(`✗ ${e.message}`, "bad");
+  }
+}
+function needKey() { $("settings").open = true; $("apiKey").focus(); }
+let keyTimer = 0;
+function onKeyInput() {
+  const v = $("apiKey").value.trim();
+  clearTimeout(keyTimer);
+  if (!v) { keyStatus(""); return; }
+  const p = detectProvider(v);
+  if (!p) { keyStatus("✗ not an OpenRouter (sk-or-…), OpenAI (sk-…) or Anthropic (sk-ant-…) key", "bad"); return; }
+  keyStatus(`${PROV_LABEL(p)} key detected — checking…`, "run");
+  keyTimer = setTimeout(() => {         // wait for the paste / typing to settle
+    if (v === getKeys()[p] && modelList.length) { keyStatus(`✓ ${PROV_LABEL(p)} key — saved in this browser`, "ok"); return; }
+    loadModels(v);
+  }, 500);
+}
+function hydrateSettings() {
+  const p = activeProvider();
+  if (p) {
+    saveKey(getKeys()[p]);              // collapses an older multi-key save down to one key
+    $("apiKey").value = getKey(p);
+    keyStatus(`${PROV_LABEL(p)} key`, "ok");
+  }
+  loadModels();
+}
+$("apiKey").addEventListener("input", onKeyInput);
+$("modelSel").onchange = (e) => { if (e.target.value) { setModel(activeProvider(), e.target.value); modelStatus(`using ${e.target.value}`, "ok"); } };
+$("modelFilter").addEventListener("input", renderModelOptions);
+$("forget").onclick = () => { forgetKeys(); $("apiKey").value = ""; keyStatus(""); $("status").innerHTML = ""; loadModels(); flash($("forget"), "Cleared"); };
+$("show").onchange = (e) => { $("apiKey").type = e.target.checked ? "text" : "password"; };
 function flash(btn,msg){ const o=btn.textContent; btn.textContent=msg; btn.disabled=true; setTimeout(()=>{btn.textContent=o;btn.disabled=false;},1100); }
 $("test").onclick = async () => {
-  for (const p of PROVIDERS) setKey(p, $(`k-${p}`).value.trim());
-  const box = $("status"); box.innerHTML = ""; const rows = {};
-  for (const p of PROVIDERS) {
-    const el = document.createElement("div"); el.className="prov";
-    el.innerHTML = `<span class="spip run"></span><span class="name">${CONFIG.providers[p].label}</span><span class="msg">testing ${CONFIG.providers[p].testModel}…</span>`;
-    box.appendChild(el); rows[p]=el;
-  }
+  const box = $("status"); box.innerHTML = "";
+  if (!anyKeySet()) { box.innerHTML = `<div class="prov"><span class="spip bad"></span><span class="msg">Enter an API key first.</span></div>`; return; }
+  const { provider, model } = resolveRole("secretary");
+  const el = document.createElement("div"); el.className = "prov";
+  el.innerHTML = `<span class="spip run"></span><span class="name"></span><span class="msg"></span>`;
+  el.querySelector(".name").textContent = PROV_LABEL(provider);
+  el.querySelector(".msg").textContent = `testing ${model}…`;
+  box.appendChild(el);
+  const pip = el.querySelector(".spip"), msg = el.querySelector(".msg");
   $("test").disabled = true;
-  await Promise.all(PROVIDERS.map(async (p) => {
-    const pip = rows[p].querySelector(".spip"), msg = rows[p].querySelector(".msg");
-    try {
-      const t0 = performance.now();
-      const { text } = await callLLM({ provider:p, model:CONFIG.providers[p].testModel, messages:[{role:"user",content:"Reply with exactly: ok"}], maxTokens:8 });
-      pip.className = "spip ok"; msg.textContent = `OK (${Math.round(performance.now()-t0)}ms) — "${(text||"").trim().slice(0,40)}"`;
-    } catch (e) { pip.className="spip bad"; msg.textContent = `FAILED — ${e.message}`; }
-  }));
+  try {
+    const t0 = performance.now();
+    const { text } = await callLLM({ provider, model, messages:[{role:"user",content:"Reply with exactly: ok"}], maxTokens:64 });
+    pip.className = "spip ok"; msg.textContent = `OK (${Math.round(performance.now()-t0)}ms) — ${model} — "${(text||"").trim().slice(0,40)}"`;
+  } catch (e) { pip.className = "spip bad"; msg.textContent = `FAILED — ${model} — ${e.message}`; }
   $("test").disabled = false;
 };
 

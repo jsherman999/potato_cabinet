@@ -52,13 +52,14 @@ You only need the one file:
 1. Download **`index.html`** (~140 KB including the embedded potato photos — the whole app; no other files required) or use the
    [live demo](https://jsherman999.github.io/potato_cabinet/).
 2. Open it in a browser (double-click / `file://` — no server needed).
-3. Open **Settings**, paste **at least one** API key (see [Getting API keys](#getting-api-keys)), and **Test all providers**.
+3. Open **Settings** and paste **one** API key (see [Getting API keys](#getting-api-keys)) — the app detects
+   the provider, loads its models, and you pick the model the whole Cabinet runs on. Hit **Test model**.
 4. Type a problem (or pick an example / hit **🦅 President Watches Cable**) and **Run**.
 
 ### Getting API keys
 
-You only need **one** key — the Cabinet routes every role to whichever provider(s) you set
-(a single key drives the whole app). Each Settings field has a **get a key ↗** link too.
+You need **one** key, from any of these — paste it into the single key field and the app recognizes
+which provider it's from (`sk-or-…` OpenRouter, `sk-ant-…` Anthropic, any other `sk-…` OpenAI).
 
 | Provider | Get a key | What it gives you |
 |---|---|---|
@@ -66,37 +67,30 @@ You only need **one** key — the Cabinet routes every role to whichever provide
 | **OpenAI** | <https://platform.openai.com/api-keys> | OpenAI models **plus the neural voices** (TTS). Sign in, add billing, create a secret key (`sk-…`). |
 | **Anthropic** | <https://console.anthropic.com/settings/keys> | Runs **Claude** (Opus / Sonnet / Haiku) directly. Sign in, add billing, create a key (`sk-ant-…`). |
 
-> **Single-key fallback:** with one key, every role uses that provider. Two notes — voices need
-> the OpenAI key (otherwise the app falls back to your browser's built-in speech), and the
-> President's *auto-pick from the news* + link-reading work best with an **OpenRouter** key, since
-> that's the one with live web search; on an OpenAI- or Anthropic-only setup those answer from the
-> model's training knowledge instead.
+> Voices need an OpenAI key (otherwise the app uses your browser's built-in speech), and the
+> President's *auto-pick from the news* + link-reading use live web search only with an **OpenRouter**
+> key; with an OpenAI or Anthropic key those answer from the model's training knowledge instead.
 
 ### Are my API keys safe?
 
 Yes. There is **no backend** — the app is a single static HTML file, so there's nowhere for
-your keys to be sent except the model providers themselves. Your keys are stored only in
+your key to be sent except the model provider itself. Your key is stored only in
 **your own browser** (`localStorage`) and are transmitted over HTTPS **directly** to
-OpenAI / OpenRouter / Anthropic — the only network requests the app makes. Nothing goes to
+OpenRouter / OpenAI / Anthropic — the only network requests the app makes. Nothing goes to
 any server of mine (there isn't one). You can read the entire `index.html` (~140 KB, most of it embedded photos) to verify
-this yourself, and the **Forget keys** button wipes them from your browser at any time.
+this yourself, and the **Forget key** button wipes it from your browser at any time.
 
-## Models (configurable in the `CONFIG.roles` block near the top of `index.html`)
+## Models
 
-Each role lists provider candidates in preference order; the app uses the first one whose key
-is set. With all three keys you get the per-role defaults (the first column); with a single key,
-every role falls back to that provider's model.
+Once your key is in, **Settings** lists that provider's models (with a filter box — OpenRouter offers
+hundreds). The model you pick runs **every** role: the President, the Chief of Staff, all 15
+secretaries, link reading and image analysis. On OpenRouter, the news/link-reading calls add
+`:online` to your model for live web search. Until you choose, the default is the first available of
+`openai/gpt-4.1-mini` (OpenRouter), `gpt-4.1-mini` (OpenAI) or `claude-sonnet-4-6` (Anthropic) —
+see `CONFIG.providers` near the top of `index.html`. Image analysis needs a vision-capable model.
 
-| Role | Anthropic | OpenRouter | OpenAI |
-|---|---|---|---|
-| Orchestrator (Chief of Staff) | **`claude-sonnet-4-6`** | `openai/gpt-4.1-mini` | `gpt-4.1-mini` |
-| Secretaries | `claude-haiku-4-5` | **`openai/gpt-4o-mini`** | `gpt-4o-mini` |
-| President | **`claude-opus-4-8`** | `openai/gpt-4.1-mini` | `gpt-4.1-mini` |
-| Web research / links | `claude-sonnet-4-6` | **`google/gemini-2.5-flash:online`** | `gpt-4.1-mini` |
-| Image analysis | `claude-haiku-4-5` | **`google/gemini-2.5-flash`** | `gpt-4o-mini` |
-
-Voice (TTS) uses OpenAI `gpt-4o-mini-tts` when an OpenAI key is set, otherwise the browser's
-built-in speech. **Bold** = the default used when every key is present.
+Voice (TTS) uses OpenAI `gpt-4o-mini-tts` when the key is an OpenAI key, otherwise the browser's
+built-in speech.
 
 See **[PLAN.md](PLAN.md)** for the full design, model research, and build notes.
 
