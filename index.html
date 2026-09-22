@@ -276,7 +276,7 @@
         <option value="cyber">Cyberattack</option>
       </select>
       <label style="display:inline-flex;align-items:center;gap:6px;margin:0;color:var(--ink)">
-        <input id="voice" type="checkbox"> 🔊 Voice
+        <input id="voice" type="checkbox"> 🔊 Voice <span id="voiceKind" class="note"></span>
       </label>
     </div>
     <div class="attach-list" id="attachList"></div>
@@ -321,8 +321,9 @@
       <select id="modelSel" class="ex-select" disabled><option>Enter a key to load models…</option></select>
       <input id="modelFilter" type="text" placeholder="filter models…" autocomplete="off" disabled>
     </div>
+    <label class="fld">Voice <span id="voiceNote" class="keykind"></span></label>
     <div class="actions">
-      <button id="test">Test model</button>
+      <button id="test" title="Sends a one-line test to the model, then plays a short voice sample">Test model &amp; voice</button>
       <button id="forget" class="ghost">Forget key</button>
       <label style="display:inline-flex;align-items:center;gap:6px;margin:0;color:var(--ink)">
         <input id="show" type="checkbox"> show key
@@ -677,8 +678,13 @@ async function pumpSpeech() {
     if (seat && $("qa").hidden) seat.scrollIntoView({ behavior:"smooth", block:"nearest" });   // keep the view on whoever's talking
     setTalking(it.seatId, true, false);
     try {
-      if (CONFIG.tts.engine === "openai" && getKey("openai")) await speakOpenAI(it.text, seatVoice(it.seatId), voiceInstructions(it.seatId), it.seatId);
-      else await speakBrowser(it.text, it.seatId);
+      if (neuralVoice()) {
+        try { await speakOpenAI(it.text, seatVoice(it.seatId), voiceInstructions(it.seatId), it.seatId); }
+        catch (e) {                          // OpenAI voice failed: say this line (and the rest) in browser speech
+          ttsFailed(e); setTalking(it.seatId, true, false);
+          await speakBrowser(it.text, it.seatId);
+        }
+      } else await speakBrowser(it.text, it.seatId);
     } catch (e) { setTalking(it.seatId, true, false); await sleep(estDuration(it.text)); }   // keep the mouth moving even if audio fails
     setTalking(it.seatId, false);
   }
@@ -691,7 +697,10 @@ async function speakOpenAI(text, voice, instructions, seatId) {
     headers: { "Authorization":`Bearer ${key}`, "Content-Type":"application/json" },
     body: JSON.stringify({ model: CONFIG.tts.openai.model, voice, input: text,
                            instructions, response_format: "mp3" }) });
-  if (!res.ok) throw new Error("tts HTTP " + res.status);
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`; try { msg = (await res.json())?.error?.message || msg; } catch {}
+    throw new Error(msg);
+  }
   const buf = await res.arrayBuffer();
   if (!audioCtx) throw new Error("no audio context");
   const decoded = await audioCtx.decodeAudioData(buf.slice(0));
@@ -723,21 +732,54 @@ function lipSync(seatId, analyser) {
   tick();
   return () => { alive = false; cancelAnimationFrame(raf); };
 }
+/* Which voice is in use: OpenAI neural TTS needs an OpenAI key. If it fails once (no access to
+   the TTS model, project restrictions, network), the session switches to browser speech so the
+   potatoes keep talking; Settings -> Test model retries it. */
+const tts = { failed: "" };
+const neuralVoice = () => CONFIG.tts.engine === "openai" && !!getKey("openai") && !tts.failed;
+function ttsFailed(e) {
+  tts.failed = (e && e.message) || "unknown error";
+  console.warn("OpenAI voice failed — using browser speech:", tts.failed);
+  renderVoiceStatus();
+}
+function browserVoiceName() {
+  if (!window.speechSynthesis) return "";
+  if (!_voices.length) _voices = speechSynthesis.getVoices();
+  const v = pickBrowserVoice(); return v ? v.name : "default voice";
+}
+function voiceInfo() {
+  if (!voiceOn()) return { text:"off (the 🔊 Voice box is unchecked)", cls:"", short:"" };
+  if (neuralVoice()) return { text:`OpenAI neural voices (${CONFIG.tts.openai.model}) — lip-synced`, cls:"ok", short:"" };
+  if (!window.speechSynthesis) return { text:"none — this browser has no speech; mouths still move", cls:"bad", short:"no speech" };
+  const name = browserVoiceName();
+  if (tts.failed) return { text:`browser speech (${name}) — OpenAI voice failed: ${tts.failed}`, cls:"bad", short:"browser" };
+  return { text:`browser speech (${name}) — add an OpenAI key for neural voices`, cls:"run", short:"browser" };
+}
+function renderVoiceStatus() {
+  const v = voiceInfo(), el = $("voiceNote");
+  if (el) { el.textContent = v.text; el.className = "keykind " + v.cls; }
+  const k = $("voiceKind");
+  if (k) { k.textContent = v.short ? `(${v.short})` : ""; k.title = v.text; }
+}
 let _voices = [];
+const pickBrowserVoice = () =>
+  _voices.find(v => /Natural|Premium|Enhanced|Siri|Google|Samantha/i.test(v.name) && /^en/i.test(v.lang))
+  || _voices.find(v => /^en/i.test(v.lang));
 function speakBrowser(text, seatId) {
   return new Promise(resolve => {
     if (!window.speechSynthesis) { sleep(estDuration(text)).then(resolve); return; }
     if (!_voices.length) _voices = speechSynthesis.getVoices();
-    const pref = _voices.find(v => /Natural|Premium|Enhanced|Siri|Google|Samantha/i.test(v.name) && /^en/i.test(v.lang))
-              || _voices.find(v => /^en/i.test(v.lang));
+    const pref = pickBrowserVoice();
     const u = new SpeechSynthesisUtterance(text);
     if (pref) u.voice = pref;
     u.rate = 0.96; u.pitch = 0.6 + ringT(seatId) * 0.6;        // male range, deep -> higher around the ring
-    u.onend = resolve; u.onerror = resolve;
+    let done = false; const finish = () => { if (!done) { done = true; clearTimeout(guard); resolve(); } };
+    const guard = setTimeout(finish, estDuration(text) * 2 + 3000);   // some browsers never fire onend
+    u.onend = finish; u.onerror = finish;
     speechSynthesis.speak(u);
   });
 }
-if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { _voices = speechSynthesis.getVoices(); };
+if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { _voices = speechSynthesis.getVoices(); renderVoiceStatus(); };
 
 const DONE_LINES = [
   (s, n) => `This here's ${s.dept} — we got a ${n}-step proposal for you, Chief!`,
@@ -1202,11 +1244,11 @@ $("files").addEventListener("change", async (e) => {
 $("exSelect").onchange = (e) => { if (EXAMPLES[e.target.value]) $("caseInput").value = EXAMPLES[e.target.value]; e.target.value = ""; };
 $("lookSel").onchange = (e) => { localStorage.setItem(LOOK_PREF, e.target.value); refreshArt(); };
 $("voice").checked = voiceOn();
-$("voice").onchange = (e) => { setVoicePref(e.target.checked); updateMuteBtn(); if (e.target.checked) unlockAudio(); else stopSpeech(); };
+$("voice").onchange = (e) => { setVoicePref(e.target.checked); updateMuteBtn(); renderVoiceStatus(); if (e.target.checked) unlockAudio(); else stopSpeech(); };
 
 $("qaAsk").onclick = doAsk;
 $("qaText").addEventListener("keydown", (e) => { if (e.key === "Enter") doAsk(); });
-$("qaMute").onclick = () => { const on = !voiceOn(); setVoicePref(on); $("voice").checked = on; updateMuteBtn(); if (on) unlockAudio(); else stopSpeech(); };
+$("qaMute").onclick = () => { const on = !voiceOn(); setVoicePref(on); $("voice").checked = on; updateMuteBtn(); renderVoiceStatus(); if (on) unlockAudio(); else stopSpeech(); };
 $("qaClose").onclick = closeQA;
 $("qa").addEventListener("click", (e) => { if (e.target === $("qa")) closeQA(); });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("qa").hidden) closeQA(); });
@@ -1281,7 +1323,7 @@ async function loadModels(newKey) {
     const list = await fetchModels(provider, key);
     if (req !== modelsReq) return;
     if (!list.length) throw new Error("no models returned");
-    if (newKey) saveKey(newKey);
+    if (newKey) { saveKey(newKey); tts.failed = ""; renderVoiceStatus(); }
     modelList = list;
     const saved = getModel();
     if (!(saved && saved.provider === provider && list.some(m => m.id === saved.id))) {
@@ -1291,7 +1333,7 @@ async function loadModels(newKey) {
     sel.disabled = false; $("modelFilter").disabled = list.length < 12;
     renderModelOptions();
     keyStatus(`✓ ${PROV_LABEL(provider)} key — saved in this browser`, "ok");
-    modelStatus(`${list.length} models`, "ok");
+    modelStatus(`${list.length} model${list.length === 1 ? "" : "s"}`, "ok");
   } catch (e) {
     if (req !== modelsReq) return;
     sel.disabled = true;
@@ -1321,31 +1363,60 @@ function hydrateSettings() {
     keyStatus(`${PROV_LABEL(p)} key`, "ok");
   }
   loadModels();
+  renderVoiceStatus();
 }
 $("apiKey").addEventListener("input", onKeyInput);
 $("modelSel").onchange = (e) => { if (e.target.value) { setModel(activeProvider(), e.target.value); modelStatus(`using ${e.target.value}`, "ok"); } };
 $("modelFilter").addEventListener("input", renderModelOptions);
-$("forget").onclick = () => { forgetKeys(); $("apiKey").value = ""; keyStatus(""); $("status").innerHTML = ""; loadModels(); flash($("forget"), "Cleared"); };
+$("forget").onclick = () => { forgetKeys(); tts.failed = ""; $("apiKey").value = ""; keyStatus(""); $("status").innerHTML = ""; loadModels(); renderVoiceStatus(); flash($("forget"), "Cleared"); };
 $("show").onchange = (e) => { $("apiKey").type = e.target.checked ? "text" : "password"; };
 function flash(btn,msg){ const o=btn.textContent; btn.textContent=msg; btn.disabled=true; setTimeout(()=>{btn.textContent=o;btn.disabled=false;},1100); }
-$("test").onclick = async () => {
-  const box = $("status"); box.innerHTML = "";
-  if (!anyKeySet()) { box.innerHTML = `<div class="prov"><span class="spip bad"></span><span class="msg">Enter an API key first.</span></div>`; return; }
-  const { provider, model } = resolveRole("secretary");
+function statusRow(name, msgText) {
   const el = document.createElement("div"); el.className = "prov";
   el.innerHTML = `<span class="spip run"></span><span class="name"></span><span class="msg"></span>`;
-  el.querySelector(".name").textContent = PROV_LABEL(provider);
-  el.querySelector(".msg").textContent = `testing ${model}…`;
-  box.appendChild(el);
-  const pip = el.querySelector(".spip"), msg = el.querySelector(".msg");
+  el.querySelector(".name").textContent = name; el.querySelector(".msg").textContent = msgText;
+  $("status").appendChild(el);
+  return { ok: (t) => { el.querySelector(".spip").className = "spip ok"; el.querySelector(".msg").textContent = t; },
+           bad: (t) => { el.querySelector(".spip").className = "spip bad"; el.querySelector(".msg").textContent = t; } };
+}
+$("test").onclick = async () => {
+  $("status").innerHTML = "";
+  if (!anyKeySet()) { statusRow("Key", "").bad("Enter an API key first."); return; }
+  unlockAudio(); stopSpeech();
   $("test").disabled = true;
+  try { await testModelAndVoice(); }
+  catch (e) { statusRow("Test", "").bad("FAILED — " + e.message); }
+  finally { setTalking("cos", false); renderVoiceStatus(); $("test").disabled = false; }
+};
+async function testModelAndVoice() {
+  const { provider, model } = resolveRole("secretary");
+  const row = statusRow(PROV_LABEL(provider), `testing ${model}…`);
   try {
     const t0 = performance.now();
     const { text } = await callLLM({ provider, model, messages:[{role:"user",content:"Reply with exactly: ok"}], maxTokens:64 });
-    pip.className = "spip ok"; msg.textContent = `OK (${Math.round(performance.now()-t0)}ms) — ${model} — "${(text||"").trim().slice(0,40)}"`;
-  } catch (e) { pip.className = "spip bad"; msg.textContent = `FAILED — ${model} — ${e.message}`; }
-  $("test").disabled = false;
-};
+    row.ok(`OK (${Math.round(performance.now()-t0)}ms) — ${model} — "${(text||"").trim().slice(0,40)}"`);
+  } catch (e) { row.bad(`FAILED — ${model} — ${e.message}`); }
+  // voice: retry OpenAI neural TTS even if it failed earlier this session, else sample browser speech
+  const sample = "Voice check. Y'all hearin' me alright?";
+  if (CONFIG.tts.engine === "openai" && getKey("openai")) {
+    const vrow = statusRow("Voice", `testing OpenAI ${CONFIG.tts.openai.model}…`);
+    try {
+      setTalking("cos", true, false);
+      await speakOpenAI(sample, seatVoice("cos"), voiceInstructions("cos"), "cos");
+      tts.failed = ""; vrow.ok(`OK — OpenAI neural voice (${CONFIG.tts.openai.model})`);
+    } catch (e) {
+      ttsFailed(e); vrow.bad(`OpenAI voice FAILED — ${e.message} — using browser speech instead`);
+      await speakBrowser(sample, "cos");
+    } finally { setTalking("cos", false); }
+  } else {
+    const vrow = statusRow("Voice", "playing a browser-speech sample…");
+    if (!window.speechSynthesis) vrow.bad("This browser has no speech synthesis — mouths still move, but silently.");
+    else {
+      setTalking("cos", true, false); await speakBrowser(sample, "cos"); setTalking("cos", false);
+      vrow.ok(`Browser speech (${browserVoiceName()}) — add an OpenAI key for neural, lip-synced voices`);
+    }
+  }
+}
 
 /* ============================== PHOTO ASSETS ==============================
    Potato photos from the Fruits-360 dataset (Horea Muresan & Mihai Oltean, MIT License,

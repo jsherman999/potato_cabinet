@@ -89,8 +89,11 @@ secretaries, link reading and image analysis. On OpenRouter, the news/link-readi
 `openai/gpt-4.1-mini` (OpenRouter), `gpt-4.1-mini` (OpenAI) or `claude-sonnet-4-6` (Anthropic) —
 see `CONFIG.providers` near the top of `index.html`. Image analysis needs a vision-capable model.
 
-Voice (TTS) uses OpenAI `gpt-4o-mini-tts` when the key is an OpenAI key, otherwise the browser's
-built-in speech.
+Voice is separate from the model you pick: it uses OpenAI's dedicated `gpt-4o-mini-tts` model when
+the key is an OpenAI key (lip-synced), otherwise the browser's built-in speech. If the OpenAI voice
+fails (e.g. the project has no access to the TTS model), the app switches to browser speech for the
+rest of the session and says why in Settings (and marks the 🔊 Voice box "(browser)");
+**Test model & voice** plays a sample and retries the OpenAI voice.
 
 See **[PLAN.md](PLAN.md)** for the full design, model research, and build notes.
 
